@@ -268,3 +268,82 @@ class TestExtendedFaultScenarios:
         hints = FaultRegistry.get_affected_services_hints()
         assert fault_name in hints
         assert isinstance(hints[fault_name], list)
+
+
+class TestFaultRegistryCoverage:
+    """Target uncovered FaultRegistry and BaseFault coverage."""
+
+    def test_registry_get_unknown_fault(self):
+        """Cover KeyError path in FaultRegistry.get() - lines 69-73."""
+        with pytest.raises(KeyError):
+            FaultRegistry.get("nonexistent_fault_xyz")
+
+    def test_registry_generate_unknown_fault(self):
+        """Cover KeyError path in FaultRegistry.generate() via get()."""
+        from app.determinism import DeterministicRNG
+        rng = DeterministicRNG(42)
+        services = ['api-gateway', 'user-service', 'order-service']
+        # generate with unknown fault name - should raise KeyError
+        with pytest.raises(KeyError):
+            FaultRegistry.generate("nonexistent_fault", rng, 3, services)
+
+    def test_basefault_validate_difficulty_below(self):
+        """Cover BaseFault.validate_difficulty below range."""
+        from app.faults.cert_expiry import CertExpiryFault
+        fault = CertExpiryFault()
+        result = fault.validate_difficulty(0)
+        assert result == fault.difficulty_range[0]
+
+    def test_basefault_validate_difficulty_above(self):
+        """Cover BaseFault.validate_difficulty above range."""
+        from app.faults.cert_expiry import CertExpiryFault
+        fault = CertExpiryFault()
+        result = fault.validate_difficulty(10)
+        assert result == fault.difficulty_range[1]
+
+    def test_cascade_validate_difficulty(self):
+        """Cover CascadeFault validate_difficulty."""
+        from app.faults.network_partition import NetworkPartitionFault
+        fault = NetworkPartitionFault()
+        result = fault.validate_difficulty(10)
+        assert result == fault.difficulty_range[1]
+
+    def test_ddos_fault_coverage(self):
+        """Cover DdosFault methods."""
+        from app.faults.ddos import DdosFault
+        from app.determinism import DeterministicRNG
+        rng = DeterministicRNG(42)
+        services = ['api-gateway', 'user-service', 'order-service']
+        fault = DdosFault()
+        assert fault.validate_difficulty(1) == 1
+        assert fault.validate_difficulty(10) == 4
+        scenario = fault.generate(rng, 3, services)
+        assert scenario.correct_fix is not None
+
+    def test_memory_leak_validate(self):
+        """Cover MemoryLeakFault validate_difficulty."""
+        from app.faults.memory_leak import MemoryLeakFault
+        fault = MemoryLeakFault()
+        assert fault.validate_difficulty(0) == 2
+        assert fault.validate_difficulty(10) == 5
+
+    def test_version_mismatch_validate(self):
+        """Cover VersionMismatchFault validate_difficulty."""
+        from app.faults.version_mismatch import VersionMismatchFault
+        fault = VersionMismatchFault()
+        assert fault.validate_difficulty(1) == 2
+        assert fault.validate_difficulty(10) == 5
+
+    def test_cert_expiry_validate(self):
+        """Cover CertExpiryFault validate_difficulty."""
+        from app.faults.cert_expiry import CertExpiryFault
+        fault = CertExpiryFault()
+        assert fault.validate_difficulty(1) == 1
+        assert fault.validate_difficulty(10) == 3
+
+    def test_zombie_process_validate(self):
+        """Cover ZombieProcessFault validate_difficulty."""
+        from app.faults.zombie_process import ZombieProcessFault
+        fault = ZombieProcessFault()
+        assert fault.validate_difficulty(0) == 2
+        assert fault.validate_difficulty(10) == 4

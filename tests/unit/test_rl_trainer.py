@@ -177,3 +177,126 @@ class TestRLTrainerSB3Availability:
         assert A2C is not None
         assert DQN is not None
         assert gym is not None
+
+
+class TestGymnasiumWrapperCoverage:
+    """Target uncovered GymnasiumWrapper methods (reset, step, _obs_to_array, get_action_mapping)."""
+
+    def test_wrapper_reset_with_seed(self):
+        """Cover GymnasiumWrapper.reset() with seed - lines 82-89."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+        from app.environment import make_env
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=42)
+        wrapper = env_fn()
+
+        obs, info = wrapper.reset(seed=42)
+        assert isinstance(obs, np.ndarray)
+        assert obs.shape[0] == wrapper._obs_size
+        wrapper.close()
+
+    def test_wrapper_reset_without_seed(self):
+        """Cover GymnasiumWrapper.reset() without seed - lines 84-89."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+        from app.environment import make_env
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=99)
+        wrapper = env_fn()
+
+        obs, info = wrapper.reset()
+        assert isinstance(obs, np.ndarray)
+        wrapper.close()
+
+    def test_wrapper_step_execution(self):
+        """Cover GymnasiumWrapper.step() - lines 91-120."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=42)
+        wrapper = env_fn()
+
+        obs, _ = wrapper.reset(seed=42)
+        # Take action 0 (query_service + first service)
+        obs, reward, term, term2, info = wrapper.step(0)
+        assert isinstance(obs, np.ndarray)
+        assert isinstance(reward, float)
+        assert isinstance(term, bool)
+        assert isinstance(term2, bool)
+        wrapper.close()
+
+    def test_wrapper_obs_to_array(self):
+        """Cover GymnasiumWrapper._obs_to_array() - lines 130-170."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=42)
+        wrapper = env_fn()
+
+        obs, _ = wrapper.reset(seed=42)
+        # _obs_to_array is called internally by reset/step
+        assert obs.shape[0] == wrapper._obs_size
+        assert obs.dtype == np.float32
+        wrapper.close()
+
+    def test_wrapper_get_action_mapping(self):
+        """Cover GymnasiumWrapper.get_action_mapping() - lines 180-187."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=42)
+        wrapper = env_fn()
+
+        wrapper.reset(seed=42)
+        action_type, service = wrapper.get_action_mapping(0)
+        assert isinstance(action_type, str)
+        assert isinstance(service, str)
+        wrapper.close()
+
+    def test_wrapper_action_space(self):
+        """Cover GymnasiumWrapper action_space property."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=42)
+        wrapper = env_fn()
+
+        assert wrapper.action_space is not None
+        assert wrapper.observation_space is not None
+        wrapper.close()
+
+    def test_wrapper_render(self):
+        """Cover GymnasiumWrapper.render() - lines 176-178."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=42)
+        wrapper = env_fn()
+        wrapper.reset(seed=42)
+
+        result = wrapper.render()
+        assert result is None  # env.render returns None
+        wrapper.close()
+
+    def test_wrapper_obs_padding(self):
+        """Cover _obs_to_array padding path - lines 155-157."""
+        from stable_baselines3 import PPO
+        from app.agents.rl.trainer import RLTrainer, GymnasiumWrapper
+
+        trainer = RLTrainer(model_class=PPO, total_timesteps=10)
+        env_fn = trainer.make_env(seed=42)
+        wrapper = env_fn()
+        # Force padding by setting services to empty
+        wrapper.reset(seed=42)
+        wrapper.env.services = {}  # Force empty for padding test
+        obs, _ = wrapper.reset(seed=99)
+        assert obs.shape[0] == wrapper._obs_size
+        wrapper.close()

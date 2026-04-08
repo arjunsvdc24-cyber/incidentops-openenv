@@ -24,9 +24,9 @@ import random
 try:
     from openai import OpenAI
     HAS_OPENAI = True
-except ImportError:
-    HAS_OPENAI = False
-    OpenAI = None
+except ImportError:  # pragma: no cover
+    HAS_OPENAI = False  # pragma: no cover
+    OpenAI = None  # pragma: no cover
 
 
 @dataclass

@@ -12,7 +12,7 @@ IncidentOps is a Gym-style reinforcement learning environment that simulates pro
 - **Python**: 3.11
 
 ## Architecture
-- `app/main.py` - FastAPI v14 with 25+ REST endpoints + WebSocket
+- `app/main.py` - FastAPI v15 with 28+ REST endpoints + WebSocket
 - `app/environment.py` - Core RL environment (IncidentEnv)
 - `app/fault_injector.py` - Core fault injection (OOM, cascade, ghost)
 - `app/faults/` - 10 extended fault generators (network partition, DDoS, cert expiry, etc.)

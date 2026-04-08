@@ -16,11 +16,23 @@ from app.main import app, ConnectionManager, get_current_user, ws_manager, creat
 async def reset_globals():
     """Reset global environment and tracker state between tests."""
     import app.main as main_module
+    import os
+    # Save env vars that /baseline may set
+    saved_env = {
+        k: os.environ.get(k)
+        for k in ["GROQ_API_KEY", "API_BASE_URL", "MODEL_NAME"]
+    }
     main_module._env = None
     main_module._tracker = None
     yield
     main_module._env = None
     main_module._tracker = None
+    # Restore env vars to avoid polluting other tests
+    for k, v in saved_env.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 @pytest.fixture
@@ -418,6 +430,32 @@ class TestBaselineEndpoint:
         assert data["agent_type"] == "rule_based"
 
     @pytest.mark.asyncio
+    async def test_baseline_with_task_parameter(self, client):
+        """Test baseline with specific task - lines 903-932."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "task": "oom_crash",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "oom_crash" in data
+        assert data["agent_type"] == "rule_based"
+        assert data["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_baseline_invalid_task_returns_400(self, client):
+        """Test baseline with invalid task name - lines 913-921."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "task": "nonexistent_task_xyz",
+        })
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] is not None
+
+    @pytest.mark.asyncio
     async def test_baseline_handles_exception(self, client):
         """Test baseline handles exceptions - lines 810-811."""
         # This is implicitly tested when LLM calls fail
@@ -427,6 +465,46 @@ class TestBaselineEndpoint:
         })
         # Should return 200 or 500 (not crash)
         assert resp.status_code in (200, 500)
+
+    @pytest.mark.asyncio
+    async def test_baseline_with_groq_api_key(self, client):
+        """Test baseline with Groq API key - lines 853-857."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "groq_api_key": "fake_groq_key_12345",
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_baseline_with_gemini_api_key(self, client):
+        """Test baseline with Gemini API key - lines 844-847."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "gemini_api_key": "fake_gemini_key_xyz",
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_baseline_with_asksage_api_key(self, client):
+        """Test baseline with AskSage API key - lines 849-852."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "askme_api_key": "fake_asksage_key_xyz",
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_baseline_with_hf_token(self, client):
+        """Test baseline with HuggingFace token - lines 864-867."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "hf_token": "hf_fake_token_xyz",
+        })
+        assert resp.status_code == 200
 
 
 class TestOpenAICheckEndpoint:
@@ -647,6 +725,50 @@ class TestWebSocketEndpoint:
         assert resp.status_code in (400, 403, 404, 500)
 
 
+class TestExceptionHandlers:
+    """Test exception handler coverage - lines 398-423."""
+
+    @pytest.mark.asyncio
+    async def test_value_error_handler_triggered(self, client):
+        """Cover ValueError exception handler - lines 398-403."""
+        # Force a ValueError by passing an invalid fault_type string
+        resp = await client.post("/reset", json={"fault_type": "nonexistent_fault"})
+        # Should return 400 or 422
+        assert resp.status_code in (400, 422)
+
+    @pytest.mark.asyncio
+    async def test_general_exception_handler(self, client):
+        """Cover general Exception handler - lines 414-423."""
+        # Try to trigger a general exception through malformed input
+        resp = await client.get("/episodes/abc")
+        # Either 404 or 422
+        assert resp.status_code in (404, 422)
+
+
+class TestOpenAIProvidersDetailed:
+    """Test all OpenAI provider paths - lines 843-872."""
+
+    @pytest.mark.asyncio
+    async def test_baseline_with_asksage(self, client):
+        """Cover AskSage provider path - lines 848-852."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "provider": "asksage",
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_baseline_with_huggingface(self, client):
+        """Cover HuggingFace provider path - lines 863-867."""
+        resp = await client.post("/baseline", json={
+            "use_llm": False,
+            "seed": 42,
+            "provider": "huggingface",
+        })
+        assert resp.status_code == 200
+
+
 class TestSPAFallback:
     """Test SPA fallback routes (lines 1281-1291)."""
 
@@ -750,6 +872,17 @@ class TestAgentsEndpoint:
             "max_steps": 3,
         })
         assert resp.status_code in (200, 404, 500)
+
+
+class TestOpenenvYamlEndpoint:
+    """Test /openenv.yaml endpoint (lines 443-450)."""
+
+    @pytest.mark.asyncio
+    async def test_openenv_yaml_endpoint(self, client):
+        """Test openenv.yaml is served - lines 443-450."""
+        resp = await client.get("/openenv.yaml")
+        assert resp.status_code == 200
+        assert "application/x-yaml" in resp.headers.get("content-type", "")
 
 
 class TestServicesAndActions:
@@ -973,24 +1106,46 @@ class TestWebSocketProtocol:
 
 
 class TestOpenAIProviders:
-    """Test OpenAI provider configuration (lines 910-911)."""
+    """Test OpenAI provider configuration (lines 1005-1029)."""
 
     @pytest.mark.asyncio
     async def test_openai_check_groq_provider(self, client):
-        """Test OpenAI check with Groq provider - lines 754-757."""
+        """Test OpenAI check with Groq API key - lines 1015-1019."""
         resp = await client.post("/openai/check", json={
-            "provider": "groq",
+            "groq_api_key": "fake_groq_key",
         })
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_openai_check_gemini_provider(self, client):
-        """Test OpenAI check with Gemini provider."""
+        """Test OpenAI check with Gemini API key - lines 1005-1009."""
         resp = await client.post("/openai/check", json={
-            "provider": "gemini",
-            "api_key": "fake_key",
+            "gemini_api_key": "fake_gemini_key",
         })
-        # Should return 200 even with fake key (just checks format)
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_openai_check_asksage_provider(self, client):
+        """Test OpenAI check with AskSage API key - lines 1010-1014."""
+        resp = await client.post("/openai/check", json={
+            "askme_api_key": "fake_asksage_key",
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_openai_check_openai_provider(self, client):
+        """Test OpenAI check with OpenAI API key - lines 1020-1024."""
+        resp = await client.post("/openai/check", json={
+            "openai_api_key": "fake_openai_key",
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_openai_check_hf_provider(self, client):
+        """Test OpenAI check with HuggingFace token - lines 1025-1029."""
+        resp = await client.post("/openai/check", json={
+            "hf_token": "hf_fake_token",
+        })
         assert resp.status_code == 200
 
 

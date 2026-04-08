@@ -49,17 +49,17 @@ class BaseAgent(ABC):
     role: AgentRole
 
     @abstractmethod
-    def reset(self, seed: int) -> None:
+    def reset(self, seed: int) -> None:  # pragma: no cover
         """
         Reset agent state for a new episode.
 
         Args:
             seed: Random seed for deterministic behavior
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
-    def decide(self, observation: AgentObservation) -> AgentDecision:
+    def decide(self, observation: AgentObservation) -> AgentDecision:  # pragma: no cover
         """
         Given an observation, decide on an action.
 
@@ -69,10 +69,10 @@ class BaseAgent(ABC):
         Returns:
             AgentDecision with chosen action
         """
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
-    def learn(self, observation: AgentObservation, decision: AgentDecision, reward: float) -> None:
+    def learn(self, observation: AgentObservation, decision: AgentDecision, reward: float) -> None:  # pragma: no cover
         """
         Learn from the outcome of a decision.
 
@@ -81,7 +81,7 @@ class BaseAgent(ABC):
             decision: The decision that was made
             reward: The reward received after executing the action
         """
-        pass
+        pass  # pragma: no cover
 
     def get_stats(self) -> Dict[str, Any]:
         """

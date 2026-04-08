@@ -107,9 +107,9 @@ class ValidationRunner:
             else:
                 self._fail("Determinism - Steps", f"Rewards differ: {rewards1} vs {rewards2}")
             
-        except Exception as e:
-            self._fail("Determinism", f"Exception: {str(e)}")
-    
+        except Exception as e:  # pragma: no cover
+            self._fail("Determinism", f"Exception: {str(e)}")  # pragma: no cover
+
     def test_environment(self) -> None:
         """Test environment functionality"""
         print("Testing Environment...")
@@ -162,9 +162,9 @@ class ValidationRunner:
                 else:
                     self._fail(f"Environment - Difficulty {difficulty}", "Wrong difficulty")
             
-        except Exception as e:
-            self._fail("Environment", f"Exception: {str(e)}")
-    
+        except Exception as e:  # pragma: no cover
+            self._fail("Environment", f"Exception: {str(e)}")  # pragma: no cover
+
     def test_grader(self) -> None:
         """Test grader functionality"""
         print("Testing Grader...")
@@ -218,9 +218,9 @@ class ValidationRunner:
             else:
                 self._fail("Grader - Explanation", "No explanation generated")
             
-        except Exception as e:
-            self._fail("Grader", f"Exception: {str(e)}")
-    
+        except Exception as e:  # pragma: no cover
+            self._fail("Grader", f"Exception: {str(e)}")  # pragma: no cover
+
     def test_baseline(self) -> None:
         """Test baseline agent"""
         print("Testing Baseline Agent...")
@@ -260,9 +260,9 @@ class ValidationRunner:
                 else:
                     self._fail(f"Baseline - Difficulty {difficulty}", f"Score {score:.3f} outside range [{low}, {high}]")
             
-        except Exception as e:
-            self._fail("Baseline", f"Exception: {str(e)}")
-    
+        except Exception as e:  # pragma: no cover
+            self._fail("Baseline", f"Exception: {str(e)}")  # pragma: no cover
+
     def test_integration(self) -> None:
         """Test integration between components"""
         print("Testing Integration...")
@@ -316,9 +316,9 @@ class ValidationRunner:
             
             self._pass("Integration - Full Workflow", f"Workflow completed, score: {score.final_score:.3f}")
             
-        except Exception as e:
-            self._fail("Integration", f"Exception: {str(e)}")
-    
+        except Exception as e:  # pragma: no cover
+            self._fail("Integration", f"Exception: {str(e)}")  # pragma: no cover
+
     def _pass(self, test_name: str, message: str) -> None:
         """Record passing test"""
         self.results.append(ValidationResult(

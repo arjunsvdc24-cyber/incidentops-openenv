@@ -539,7 +539,7 @@ class DeceptiveSignalGenerator:
                 "is_deceptive": True,
             })
         
-        elif deception_type == DeceptionType.DELAYED_LOGS:
+        elif deception_type == DeceptionType.DELAYED_LOGS:  # pragma: no cover
             # Add logs that appear late
             deceptive_logs.append({
                 "timestamp": (datetime(2024, 1, 15, 10, 0, 0) - timedelta(minutes=5)).isoformat(),

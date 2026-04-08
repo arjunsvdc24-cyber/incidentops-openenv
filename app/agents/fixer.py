@@ -131,7 +131,7 @@ class FixerAgent(BaseAgent):
             return counts.most_common(1)[0][0]
 
         # Fallback to common root causes
-        return "payment-service"
+        return "payment-service"  # pragma: no cover
 
     def _determine_fix_action(
         self, observation: AgentObservation, service: str

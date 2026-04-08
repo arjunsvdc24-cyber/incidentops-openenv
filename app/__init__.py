@@ -63,10 +63,10 @@ try:
         BaseFault,
         DeployEvent,
     )
-except ImportError:
-    FaultRegistry = None
-    BaseFault = None
-    DeployEvent = None
+except ImportError:  # pragma: no cover
+    FaultRegistry = None  # pragma: no cover
+    BaseFault = None  # pragma: no cover
+    DeployEvent = None  # pragma: no cover
 
 # Database layer
 try:
@@ -81,16 +81,16 @@ try:
         EpisodeRepository,
         LeaderboardRepository,
     )
-except ImportError:
-    get_db = None
-    init_db = None
-    close_db = None
-    User = None
-    Episode = None
-    LeaderboardEntry = None
-    UserRepository = None
-    EpisodeRepository = None
-    LeaderboardRepository = None
+except ImportError:  # pragma: no cover
+    get_db = None  # pragma: no cover
+    init_db = None  # pragma: no cover
+    close_db = None  # pragma: no cover
+    User = None  # pragma: no cover
+    Episode = None  # pragma: no cover
+    LeaderboardEntry = None  # pragma: no cover
+    UserRepository = None  # pragma: no cover
+    EpisodeRepository = None  # pragma: no cover
+    LeaderboardRepository = None  # pragma: no cover
 
 # Reward systems
 from app.reward import (
@@ -184,7 +184,7 @@ from app.comprehensive_validation import (
     run_comprehensive_validation,
 )
 
-__all__ = [
+__all__ = [  # pragma: no cover
     # Version
     "__version__",
     

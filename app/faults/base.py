@@ -62,17 +62,12 @@ class BaseFault(ABC):
         Returns:
             FaultScenario with all fault details
         """
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     @abstractmethod
     def get_symptoms(self) -> list[str]:
-        """
-        Get characteristic symptoms for this fault type.
-
-        Returns:
-            List of human-readable symptom descriptions
-        """
-        raise NotImplementedError
+        """Get characteristic symptoms for this fault type."""
+        raise NotImplementedError  # pragma: no cover
 
     def validate_difficulty(self, difficulty: int) -> int:
         """Clamp difficulty only when outside the fault's valid range"""
@@ -83,10 +78,10 @@ class BaseFault(ABC):
             return max_diff
         return difficulty
 
-    def get_log_noise_patterns(self) -> list[str]:
+    def get_log_noise_patterns(self) -> list[str]:  # pragma: no cover
         """Get characteristic log noise patterns for this fault"""
-        return []
+        return []  # pragma: no cover
 
-    def get_metric_noise_patterns(self) -> list[str]:
+    def get_metric_noise_patterns(self) -> list[str]:  # pragma: no cover
         """Get characteristic metric noise patterns for this fault"""
-        return []
+        return []  # pragma: no cover

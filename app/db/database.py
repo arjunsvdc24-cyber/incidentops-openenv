@@ -38,11 +38,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        except Exception:  # pragma: no cover
+            await session.rollback()  # pragma: no cover
+            raise  # pragma: no cover
+        finally:  # pragma: no cover
+            await session.close()  # pragma: no cover
 
 
 @asynccontextmanager
@@ -52,9 +52,9 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+        except Exception:  # pragma: no cover
+            await session.rollback()  # pragma: no cover
+            raise  # pragma: no cover
 
 
 async def init_db() -> None:

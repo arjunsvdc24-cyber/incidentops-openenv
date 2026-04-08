@@ -33,3 +33,6 @@ gymnasium>=0.28.0
 
 # Utils
 httpx>=0.25.0
+
+# HF Spaces support
+huggingface_hub[hf_transfer]>=0.21.0

@@ -1,3 +1,8 @@
+# ─────────────────────────────────────────────────────────────
+# IncidentOps .dockerignore
+# Exclude everything not needed in production image
+# ─────────────────────────────────────────────────────────────
+
 # Git
 .git
 .gitignore
@@ -12,21 +17,33 @@ __pycache__
 dist/
 build/
 .eggs/
+*.egg
 
 # Testing
 .pytest_cache
 .coverage
+cov_report.txt
 htmlcov/
 tests/
 *.test.py
 
-# Development
+# Development & secrets
 .env
 .env.local
 .env.*.local
 .venv/
 venv/
 ENV/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude / agent context (NOT needed in image)
+.claude-flow/
+.claude/
+RULES.txt
+RULES/
 
 # Node (already has node_modules but be thorough)
 dashboard/node_modules
@@ -36,20 +53,22 @@ logs/
 output.log
 *.log
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
 # Docker
 Dockerfile
 docker-compose*.yml
 
 # Documentation (not needed in image)
-*.md
-docs/
+# EXCEPTION: CLAUDE.md is kept for project context at runtime
+# *.md excluded below except CLAUDE.md is re-added at end
 
 # CI/CD
 .github/
 .github/workflows/
+
+# Database and caches
+*.db
+incidentops.db
+*.sqlite
+
+# Extra: keep CLAUDE.md for project-level context at runtime
+CLAUDE.md

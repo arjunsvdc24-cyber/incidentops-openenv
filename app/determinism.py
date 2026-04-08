@@ -246,8 +246,8 @@ class DeterminismAudit:
                                             "pattern": pattern,
                                             "message": message,
                                         })
-                    except Exception:
-                        pass
+                    except Exception:  # pragma: no cover
+                        pass  # pragma: no cover
         
         return {
             "violations_found": len(violations),

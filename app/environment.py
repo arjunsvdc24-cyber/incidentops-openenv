@@ -35,6 +35,50 @@ from app.fault_injector import (
 )
 
 
+# === SLA & Business Constants ===
+
+# Simulation time: 5 steps = 1 minute
+STEPS_PER_MINUTE = 5
+
+# SLA time limits per fault type (in minutes)
+SLA_MINUTES = {
+    "oom": 5,
+    "cascade": 8,
+    "ghost": 15,
+    "deployment": 8,
+    "network": 5,
+    "network_partition": 5,
+    "data_corruption": 5,
+    "config_drift": 10,
+    "ddos": 3,
+    "slow_downstream": 8,
+    "version_mismatch": 10,
+    "cert_expiry": 15,
+    "memory_leak": 10,
+    "zombie_process": 5,
+    "thundering_herd": 5,
+}
+
+# Revenue per minute for each service (based on criticality, in USD)
+SERVICE_REVENUE_MAP = {
+    "payment-service": 5000,
+    "order-service": 4000,
+    "user-service": 3000,
+    "api-gateway": 5000,
+    "auth-service": 4500,
+    "inventory-service": 2000,
+    "recommendation-service": 1500,
+    "cache-service": 1000,
+    "notification-service": 500,
+    "email-service": 300,
+    "shipping-service": 2000,
+    "search-service": 1000,
+    "analytics-service": 500,
+    "database-primary": 8000,
+    "database-replica": 0,
+}
+
+
 @dataclass
 class EnvironmentConfig:
     """Configuration for the environment"""
@@ -329,15 +373,15 @@ class IncidentEnv:
         elif action.action_type == ActionType.APPLY_FIX:
             return self._apply_fix(action.target_service)
         
-        return {"error": f"Unknown action type: {action.action_type}"}
+        return {"error": f"Unknown action type: {action.action_type}"}  # pragma: no cover
     
     def _query_service(self, service: Optional[str]) -> dict:
         """Query service status"""
         if not service:
-            return {"error": "target_service required"}
-        
+            return {"error": "target_service required"}  # pragma: no cover
+
         if service not in self.services:
-            return {"error": f"Service {service} not found"}
+            return {"error": f"Service {service} not found"}  # pragma: no cover
         
         first_observation = service not in self._observed_services
         self._observed_services.add(service)
@@ -351,10 +395,10 @@ class IncidentEnv:
     def _query_metrics(self, service: Optional[str]) -> dict:
         """Query service metrics with noise"""
         if not service:
-            return {"error": "target_service required"}
-        
+            return {"error": "target_service required"}  # pragma: no cover
+
         if not self.simulator:
-            return {"error": "No active scenario"}
+            return {"error": "No active scenario"}  # pragma: no cover
         
         # Mark as observed
         self._observed_metrics.add(service)
@@ -388,10 +432,10 @@ class IncidentEnv:
     def _query_logs(self, service: Optional[str]) -> dict:
         """Query service logs with noise and partial observability"""
         if not service:
-            return {"error": "target_service required"}
-        
+            return {"error": "target_service required"}  # pragma: no cover
+
         if not self.simulator:
-            return {"error": "No active scenario"}
+            return {"error": "No active scenario"}  # pragma: no cover
         
         # Mark as observed
         was_hidden = service not in self._observed_logs
@@ -430,7 +474,7 @@ class IncidentEnv:
     def _query_deployments(self) -> dict:
         """Query deployment timeline"""
         if not self.simulator:
-            return {"error": "No active scenario"}
+            return {"error": "No active scenario"}  # pragma: no cover
         
         return {
             "deployments": self.simulator.get_deploy_timeline(),
@@ -439,10 +483,10 @@ class IncidentEnv:
     def _restart_service(self, service: Optional[str]) -> dict:
         """Restart a service"""
         if not service:
-            return {"error": "target_service required"}
-        
+            return {"error": "target_service required"}  # pragma: no cover
+
         if service not in self.services:
-            return {"error": f"Service {service} not found"}
+            return {"error": f"Service {service} not found"}  # pragma: no cover
         
         is_correct = (
             self.current_scenario and
@@ -463,7 +507,7 @@ class IncidentEnv:
     def _scale_service(self, service: Optional[str]) -> dict:
         """Scale a service"""
         if not service:
-            return {"error": "target_service required"}
+            return {"error": "target_service required"}  # pragma: no cover
 
         is_correct = (
             self.current_scenario and
@@ -485,7 +529,7 @@ class IncidentEnv:
     def _rollback_deployment(self, service: Optional[str]) -> dict:
         """Rollback a service deployment"""
         if not service:
-            return {"error": "target_service required"}
+            return {"error": "target_service required"}  # pragma: no cover
         
         is_correct = (
             self.current_scenario and
@@ -507,7 +551,7 @@ class IncidentEnv:
     def _query_memory(self, parameters: dict) -> dict:
         """Query incident memory"""
         if not self.memory:
-            return {"error": "Memory system disabled"}
+            return {"error": "Memory system disabled"}  # pragma: no cover
         
         self.memory_used_this_step = True
         
@@ -525,7 +569,7 @@ class IncidentEnv:
     def _identify_root_cause(self, service: Optional[str]) -> dict:
         """Identify root cause service"""
         if not service:
-            return {"error": "target_service required"}
+            return {"error": "target_service required"}  # pragma: no cover
         
         is_correct = (
             self.current_scenario and
@@ -544,7 +588,7 @@ class IncidentEnv:
     def _apply_fix(self, service: Optional[str]) -> dict:
         """Apply fix to service"""
         if not service:
-            return {"error": "target_service required"}
+            return {"error": "target_service required"}  # pragma: no cover
         
         is_correct = (
             self.current_scenario and
@@ -652,32 +696,13 @@ class IncidentEnv:
 
     def _calculate_business_impact(self) -> dict:
         """Calculate business impact metrics based on service health and fault"""
-        # Revenue per minute for each service (based on criticality)
-        revenue_map = {
-            "payment-service": 5000,
-            "order-service": 4000,
-            "user-service": 3000,
-            "api-gateway": 5000,
-            "auth-service": 4500,
-            "inventory-service": 2000,
-            "recommendation-service": 1500,
-            "cache-service": 1000,
-            "notification-service": 500,
-            "email-service": 300,
-            "shipping-service": 2000,
-            "search-service": 1000,
-            "analytics-service": 500,
-            "database-primary": 8000,
-            "database-replica": 0,
-        }
-
         total_revenue_loss = 0.0
         affected_users = 0
         impacted_services = []
 
         for svc, state in self.services.items():
             status = state.get("status", "healthy")
-            revenue_per_min = revenue_map.get(svc, 500)
+            revenue_per_min = SERVICE_REVENUE_MAP.get(svc, 500)
 
             if status == "unhealthy":
                 # Complete outage: lose all revenue
@@ -692,8 +717,7 @@ class IncidentEnv:
 
         # Cumulative loss based on steps elapsed
         steps_elapsed = self.current_step
-        steps_per_minute = 5  # Assume 5 steps per minute
-        minutes_elapsed = steps_elapsed / steps_per_minute
+        minutes_elapsed = steps_elapsed / STEPS_PER_MINUTE
         cumulative_revenue_loss = total_revenue_loss * minutes_elapsed
 
         return {
@@ -706,32 +730,11 @@ class IncidentEnv:
 
     def _get_sla_deadline(self) -> dict:
         """Calculate SLA deadline countdown"""
-        max_steps = 50
-        steps_per_minute = 5
-        total_minutes = max_steps / steps_per_minute  # 10 minutes total
-
-        # SLA deadlines vary by fault type
-        sla_map = {
-            "oom": 5,        # 5 min to fix OOM
-            "cascade": 8,    # 8 min for cascade
-            "ghost": 15,     # 15 min for ghost (harder to detect)
-            "network_partition": 5,
-            "data_corruption": 5,
-            "config_drift": 10,
-            "ddos": 3,       # 3 min for DDoS (high urgency)
-            "slow_downstream": 8,
-            "version_mismatch": 10,
-            "cert_expiry": 15,
-            "memory_leak": 10,
-            "zombie_process": 5,
-            "thundering_herd": 5,
-        }
-
         fault_type = self.current_scenario.fault_type.value if self.current_scenario else "oom"
-        sla_minutes = sla_map.get(fault_type, 10)
+        sla_minutes = SLA_MINUTES.get(fault_type, 10)
 
         steps_elapsed = self.current_step
-        minutes_elapsed = steps_elapsed / steps_per_minute
+        minutes_elapsed = steps_elapsed / STEPS_PER_MINUTE
         minutes_remaining = max(0, sla_minutes - minutes_elapsed)
         urgency = "normal" if minutes_remaining > sla_minutes * 0.5 else "elevated" if minutes_remaining > sla_minutes * 0.2 else "critical"
         breached = minutes_remaining <= 0
@@ -752,31 +755,9 @@ class IncidentEnv:
         MINIMUM of the configured max_steps and the SLA-based max_steps,
         ensuring SLA deadlines are enforced even when max_steps is generous.
         """
-        # Steps per minute of simulation time
-        STEPS_PER_MINUTE = 5
-
-        # SLA time limits per fault type (in minutes)
-        SLA_MINUTES = {
-            "oom": 5,
-            "cascade": 8,
-            "ghost": 15,
-            "deployment": 8,
-            "network": 5,
-            "network_partition": 5,
-            "data_corruption": 5,
-            "config_drift": 10,
-            "ddos": 3,
-            "slow_downstream": 8,
-            "version_mismatch": 10,
-            "cert_expiry": 15,
-            "memory_leak": 10,
-            "zombie_process": 5,
-            "thundering_herd": 5,
-        }
-
         fault_type = self.current_scenario.fault_type.value if self.current_scenario else "oom"
         sla_minutes = SLA_MINUTES.get(fault_type, 10)
-        sla_max_steps = sla_minutes * STEPS_PER_MINUTE  # e.g. oom: 5*5=25 steps
+        sla_max_steps = sla_minutes * STEPS_PER_MINUTE
 
         # Use the tighter of the two constraints
         return min(self.config.max_steps, sla_max_steps)

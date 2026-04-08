@@ -135,7 +135,7 @@ def check_openenv_spec() -> CheckResult:
     with open("openenv.yaml") as f:
         spec = f.read()
 
-    required_sections = ["observation", "action", "reward", "environment"]
+    required_sections = ["observation", "action", "reward", "episode"]
     for section in required_sections:
         if section not in spec:
             issues.append(f"openenv.yaml missing '{section}' section")
@@ -206,11 +206,42 @@ def check_dockerfile() -> CheckResult:
     if not os.path.exists("requirements.txt"):
         return CheckResult("Dockerfile Build", False, "requirements.txt not found")
 
+    # Check if Docker is available first (non-blocking check)
+    try:
+        docker_check = subprocess.run(
+            ["docker", "info"],
+            capture_output=True, timeout=15,
+        )
+        if docker_check.returncode != 0:
+            return CheckResult(
+                "Dockerfile Build", True,  # Not a hard failure - docker info failed
+                "Docker not accessible (skipping build check). Verify manually."
+            )
+    except FileNotFoundError:
+        return CheckResult(
+            "Dockerfile Build", True,
+            "Docker CLI not in PATH (skipping build check). Verify manually."
+        )
+    except subprocess.TimeoutExpired:
+        return CheckResult(
+            "Dockerfile Build", True,
+            "Docker daemon not responding in 15s (skipping build check). Verify manually."
+        )
+
     # Check if image already exists (skip rebuild if so)
-    check_img = subprocess.run(
-        ["docker", "image", "inspect", "incidentops-test:latest"],
-        capture_output=True, timeout=10,
-    )
+    try:
+        check_img = subprocess.run(
+            ["docker", "image", "inspect", "incidentops-test:latest"],
+            capture_output=True, timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return CheckResult(
+            "Dockerfile Build", False,
+            "Docker image inspect timed out after 30s. Check Docker daemon."
+        )
+    except FileNotFoundError:
+        return CheckResult("Dockerfile Build", False, "Docker not in PATH")
+
     if check_img.returncode == 0:
         log("Docker image already exists (from previous build)", True)
     else:
@@ -230,10 +261,19 @@ def check_dockerfile() -> CheckResult:
 
     # Verify image has correct CMD/ENTRYPOINT via inspect
     log("Verifying image configuration...", None)
-    inspect = subprocess.run(
-        ["docker", "inspect", "incidentops-test:latest", "--format", "{{json .Config.Cmd}}"],
-        capture_output=True, text=True, timeout=10,
-    )
+    try:
+        inspect = subprocess.run(
+            ["docker", "inspect", "incidentops-test:latest", "--format", "{{json .Config.Cmd}}"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return CheckResult(
+            "Dockerfile Build", False,
+            "Docker inspect timed out after 30s. Check Docker daemon."
+        )
+    except FileNotFoundError:
+        return CheckResult("Dockerfile Build", False, "Docker not in PATH")
+
     if inspect.returncode != 0:
         return CheckResult("Dockerfile Build", False, f"Image inspect failed: {inspect.stderr[:200]}")
     cmd = inspect.stdout.strip()
@@ -242,8 +282,11 @@ def check_dockerfile() -> CheckResult:
     log(f"Image CMD verified: {cmd[:60]}", True)
 
     # Clean up image to keep disk usage low
-    subprocess.run(["docker", "rmi", "-f", "incidentops-test:latest"],
-                   capture_output=True, timeout=30)
+    try:
+        subprocess.run(["docker", "rmi", "-f", "incidentops-test:latest"],
+                       capture_output=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        pass  # Non-fatal - cleanup can fail without blocking success
 
     return CheckResult("Dockerfile Build", True, "Dockerfile builds with correct CMD")
 

@@ -1374,7 +1374,8 @@ class TestBaselineLLMProviders:
         data = response.json()
         # Either it fell back to rule-based, or it returned valid scores
         is_fallback = data.get("fallback") == "rule_based" or data.get("error") is not None
-        has_scores = all(k in data for k in ("easy", "medium", "hard"))
+        # The actual response keys are oom_crash, cascade_failure, ghost_corruption
+        has_scores = all(k in data for k in ("oom_crash", "cascade_failure", "ghost_corruption"))
         assert is_fallback or has_scores, f"Expected fallback or scores, got: {list(data.keys())}"
 
     @pytest.mark.asyncio

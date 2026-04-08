@@ -45,7 +45,7 @@ WORKDIR /app
 # Install only runtime dependencies (no npm/node in final image)
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --user -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy built React dashboard from builder stage
 COPY --from=builder /app/dashboard/dist ./app/static
@@ -57,6 +57,7 @@ COPY baseline.py .
 COPY inference.py .
 COPY pyproject.toml .
 COPY .env.example .
+COPY run.sh .
 
 # Create logs directory with proper permissions
 RUN mkdir -p /app/logs && chown -R appuser:appuser /app
