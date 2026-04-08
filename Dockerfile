@@ -56,11 +56,10 @@ COPY openenv.yaml .
 COPY baseline.py .
 COPY inference.py .
 COPY pyproject.toml .
-COPY .env.example .
 COPY run.sh .
 
-# Create logs directory with proper permissions
-RUN mkdir -p /app/logs && chown -R appuser:appuser /app
+# Create logs directory owned by appuser
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
 
 # Switch to non-root user
 USER appuser
