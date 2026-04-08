@@ -1,5 +1,4 @@
-# IncidentOps v14.0.0 - Production Requirements
-# Docker image: python:3.11-slim
+# IncidentOps v15.0 - HF Spaces (API only, no ML training deps)
 # Install: pip install -r requirements.txt
 
 # Core Web
@@ -27,12 +26,8 @@ email-validator>=2.0.0
 # Observability
 prometheus-client>=0.18.0
 
-# RL / ML
-stable-baselines3>=2.0.0
-gymnasium>=0.28.0
-
-# Utils
+# HTTP
 httpx>=0.25.0
 
 # HF Spaces support
-huggingface_hub[hf_transfer]>=0.21.0
+huggingface_hub>=0.21.0
