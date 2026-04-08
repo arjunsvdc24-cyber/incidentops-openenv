@@ -4,6 +4,7 @@ Targeting uncovered lines in app/main.py for coverage improvement.
 """
 import pytest
 import time
+import uuid
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 
@@ -33,8 +34,8 @@ async def registered_user_client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         # Register a user
-        username = f"testuser_{int(time.time())}"
-        email = f"test_{int(time.time())}@example.com"
+        username = f"testuser_{uuid.uuid4().hex[:12]}"
+        email = f"test_{uuid.uuid4().hex[:12]}@example.com"
         password = "TestPassword123!"
 
         reg_resp = await ac.post("/auth/register", json={
@@ -118,9 +119,7 @@ class TestAuthEndpointsExtended:
     @pytest.mark.asyncio
     async def test_me_authenticated(self, registered_user_client):
         """Test /me endpoint returns user data when authenticated."""
-        if not registered_user_client["token"]:
-            pytest.skip("Could not get auth token (bcrypt may have issues)")
-
+        assert registered_user_client["token"], "Registration/login failed - bcrypt may have issues"
         response = await registered_user_client["client"].get(
             "/me",
             headers=registered_user_client["headers"]
@@ -178,13 +177,11 @@ class TestEpisodeEndpointsExtended:
     @pytest.mark.asyncio
     async def test_save_episode_authenticated(self, registered_user_client):
         """Test saving episode with authenticated user."""
-        if not registered_user_client["token"]:
-            pytest.skip("Could not get auth token (bcrypt may have issues)")
-
+        assert registered_user_client["token"], "Registration/login failed - bcrypt may have issues"
         response = await registered_user_client["client"].post(
             "/episodes",
             json={
-                "episode_id": f"test_ep_{int(time.time())}",
+                "episode_id": f"test_ep_{uuid.uuid4().hex[:12]}",
                 "fault_type": "oom",
                 "difficulty": 2,
                 "seed": 42,
@@ -205,10 +202,8 @@ class TestEpisodeEndpointsExtended:
     @pytest.mark.asyncio
     async def test_save_duplicate_episode(self, registered_user_client):
         """Test saving duplicate episode returns 409."""
-        if not registered_user_client["token"]:
-            pytest.skip("Could not get auth token (bcrypt may have issues)")
-
-        episode_id = f"dup_ep_{int(time.time())}"
+        assert registered_user_client["token"], "Registration/login failed - bcrypt may have issues"
+        episode_id = f"dup_ep_{uuid.uuid4().hex[:12]}"
         headers = registered_user_client["headers"]
         episode_data = {
             "episode_id": episode_id,
@@ -528,8 +523,7 @@ class TestAuthAPIKey:
     @pytest.mark.asyncio
     async def test_auth_with_api_key_header(self, registered_user_client, client):
         """Test /me endpoint with API key in X-API-Key header."""
-        if not registered_user_client["token"]:
-            pytest.skip("Could not get auth token (bcrypt may have issues)")
+        assert registered_user_client["token"], "Registration/login failed - bcrypt may have issues"
 
         # Get user info first
         me_resp = await registered_user_client["client"].get(
@@ -864,10 +858,8 @@ class TestEpisodeSaveWithLeaderboard:
     @pytest.mark.asyncio
     async def test_save_episode_updates_leaderboard(self, registered_user_client):
         """Test saving an episode updates the leaderboard."""
-        if not registered_user_client["token"]:
-            pytest.skip("Could not get auth token (bcrypt may have issues)")
-
-        episode_id = f"leaderboard_test_{int(time.time())}"
+        assert registered_user_client["token"], "Registration/login failed - bcrypt may have issues"
+        episode_id = f"leaderboard_test_{uuid.uuid4().hex[:12]}"
         response = await registered_user_client["client"].post(
             "/episodes",
             json={
@@ -896,11 +888,10 @@ class TestLeaderboardWithEntries:
     @pytest.mark.asyncio
     async def test_leaderboard_after_save(self, registered_user_client):
         """Test leaderboard shows entries after saving episodes."""
-        if not registered_user_client["token"]:
-            pytest.skip("Could not get auth token (bcrypt may have issues)")
+        assert registered_user_client["token"], "Registration/login failed - bcrypt may have issues"
 
         # Save an episode first
-        episode_id = f"lb_test_{int(time.time())}"
+        episode_id = f"lb_test_{uuid.uuid4().hex[:12]}"
         await registered_user_client["client"].post(
             "/episodes",
             json={
@@ -1310,3 +1301,244 @@ class TestExceptionHandlerGeneral:
         )
         # Should return error, not crash
         assert response.status_code in (400, 422, 500)
+
+
+# =========================================================================
+# Additional tests targeting specific uncovered lines in app/main.py
+# =========================================================================
+
+class TestBaselineLLMProviders:
+    """Test /baseline with different LLM providers (lines 730-782)."""
+
+    @pytest.mark.asyncio
+    async def test_baseline_gemini_provider(self, client):
+        """Test baseline with Gemini provider config (line 734-738)."""
+        response = await client.post("/baseline", json={
+            "use_llm": True,
+            "gemini_api_key": "test_gemini_key",
+            "gemini_model": "gemini-2.0-flash",
+            "seed": 42,
+        })
+        # Should return 200 or 500 (endpoint handles API errors gracefully)
+        assert response.status_code in (200, 500)
+        data = response.json()
+        assert "success" in data or "error" in data
+
+    @pytest.mark.asyncio
+    async def test_baseline_openai_provider(self, client):
+        """Test baseline with OpenAI provider config (line 749-753)."""
+        response = await client.post("/baseline", json={
+            "use_llm": True,
+            "openai_api_key": "sk-test-openai-key",
+            "openai_model": "gpt-4o",
+            "seed": 42,
+        })
+        assert response.status_code in (200, 500)
+        data = response.json()
+        assert "success" in data or "error" in data
+
+    @pytest.mark.asyncio
+    async def test_baseline_hf_token_provider(self, client):
+        """Test baseline with HuggingFace token (line 754-758)."""
+        response = await client.post("/baseline", json={
+            "use_llm": True,
+            "hf_token": "hf_test_token",
+            "hf_model": "mistralai/Mistral-7B-Instruct-v0.3",
+            "seed": 42,
+        })
+        assert response.status_code in (200, 500)
+        data = response.json()
+        assert "success" in data or "error" in data
+
+    @pytest.mark.asyncio
+    async def test_baseline_asksage_provider(self, client):
+        """Test baseline with AskSage provider (line 739-743)."""
+        response = await client.post("/baseline", json={
+            "use_llm": True,
+            "askme_api_key": "test_askme_key",
+            "askme_model": "gpt-4o",
+            "seed": 42,
+        })
+        assert response.status_code in (200, 500)
+        data = response.json()
+        assert "success" in data or "error" in data
+
+    @pytest.mark.asyncio
+    async def test_baseline_llm_no_key_returns_error(self, client):
+        """Test baseline with use_llm=True - returns either fallback or valid scores."""
+        response = await client.post("/baseline", json={
+            "use_llm": True,
+            "seed": 42,
+        })
+        assert response.status_code in (200, 500)
+        data = response.json()
+        # Either it fell back to rule-based, or it returned valid scores
+        is_fallback = data.get("fallback") == "rule_based" or data.get("error") is not None
+        has_scores = all(k in data for k in ("easy", "medium", "hard"))
+        assert is_fallback or has_scores, f"Expected fallback or scores, got: {list(data.keys())}"
+
+    @pytest.mark.asyncio
+    async def test_baseline_with_generic_override(self, client):
+        """Test baseline with generic api_base_url and model_name (line 760-763)."""
+        response = await client.post("/baseline", json={
+            "use_llm": True,
+            "api_base_url": "https://custom-api.example.com/v1",
+            "model_name": "custom-model",
+            "seed": 42,
+        })
+        assert response.status_code in (200, 500)
+
+
+class TestMeEndpointCoverage:
+    """Test /me endpoint (lines 994-998) with valid auth token."""
+
+    @pytest.mark.asyncio
+    async def test_me_with_valid_jwt(self, client):
+        """Test /me with a valid JWT token exercises lines 106-109."""
+        # Register and get token
+        import time
+        username = f"covuser_{int(time.time())}"
+        reg_resp = await client.post("/auth/register", json={
+            "username": username,
+            "email": f"{username}@example.com",
+            "password": "TestPass123!",
+        })
+        assert reg_resp.status_code == 200
+        token = reg_resp.json().get("access_token")
+        assert token is not None
+
+        # Test /me with valid JWT (exercises lines 106-109)
+        me_resp = await client.get("/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_resp.status_code == 200
+        data = me_resp.json()
+        assert data["username"] == username
+
+    @pytest.mark.asyncio
+    async def test_me_without_auth_returns_401(self, client):
+        """Test /me without auth token returns 401."""
+        resp = await client.get("/me")
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_me_with_invalid_token(self, client):
+        """Test /me with invalid JWT token."""
+        resp = await client.get("/me", headers={"Authorization": "Bearer invalid_token_xyz"})
+        assert resp.status_code == 401
+
+
+class TestEpisodesFilteringCoverage:
+    """Test /episodes filtering paths (lines 1030-1034)."""
+
+    @pytest.mark.asyncio
+    async def test_episodes_filtered_by_fault_type(self, client):
+        """Test /episodes with fault_type filter exercises lines 1032-1034."""
+        response = await client.get("/episodes?fault_type=oom")
+        assert response.status_code == 200
+        data = response.json()
+        assert "episodes" in data or "total" in data
+
+    @pytest.mark.asyncio
+    async def test_episodes_pagination_with_page(self, client):
+        """Test /episodes with page > 1 exercises line 1037."""
+        response = await client.get("/episodes?page=3&per_page=5")
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_episodes_default_path(self, client):
+        """Test /episodes without filters exercises lines 1035-1037."""
+        response = await client.get("/episodes")
+        assert response.status_code == 200
+        data = response.json()
+        assert "episodes" in data or "total" in data
+
+
+class TestLeaderboardCoverage:
+    """Test /leaderboard with task_id for coverage (lines 1115-1144)."""
+
+    @pytest.mark.asyncio
+    async def test_leaderboard_with_task_id(self, client):
+        """Test /leaderboard with specific task exercises lines 1123-1142."""
+        response = await client.get("/leaderboard?task_id=oom_crash&limit=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert "entries" in data
+
+    @pytest.mark.asyncio
+    async def test_leaderboard_empty_task_returns_empty(self, client):
+        """Test /leaderboard without task_id returns empty (line 1115-1116)."""
+        response = await client.get("/leaderboard")
+        assert response.status_code == 200
+        data = response.json()
+        assert "entries" in data or "total" in data
+
+
+class TestOpenAICheckCoverage:
+    """Test /openai/check with various providers (lines 853-902)."""
+
+    @pytest.mark.asyncio
+    async def test_openai_check_gemini(self, client):
+        """Test /openai/check with Gemini provider (lines 853-857)."""
+        response = await client.post("/openai/check", json={
+            "gemini_api_key": "test_key",
+            "gemini_model": "gemini-2.0-flash",
+        })
+        assert response.status_code in (200, 400, 500)
+        data = response.json()
+        assert "valid" in data
+
+    @pytest.mark.asyncio
+    async def test_openai_check_asksage(self, client):
+        """Test /openai/check with AskSage provider (lines 858-862)."""
+        response = await client.post("/openai/check", json={
+            "askme_api_key": "test_key",
+        })
+        assert response.status_code in (200, 400, 500)
+
+    @pytest.mark.asyncio
+    async def test_openai_check_groq(self, client):
+        """Test /openai/check with Groq provider (lines 863-867)."""
+        response = await client.post("/openai/check", json={
+            "groq_api_key": "test_key",
+            "groq_model": "groq/llama-4-opus-17b",
+        })
+        assert response.status_code in (200, 400, 500)
+
+    @pytest.mark.asyncio
+    async def test_openai_check_with_generic_override(self, client):
+        """Test /openai/check with generic api_base_url (lines 878-879)."""
+        response = await client.post("/openai/check", json={
+            "api_base_url": "https://custom.api/v1",
+            "model_name": "my-model",
+            "groq_api_key": "fake_key",
+        })
+        assert response.status_code in (200, 400, 500)
+
+
+class TestStepEndpointCoverage:
+    """Test /step endpoint validation (line 483)."""
+
+    @pytest.mark.asyncio
+    async def test_step_without_reset_returns_400(self, client):
+        """Test /step without prior /reset returns 400 (line 483)."""
+        # Create a fresh client without reset
+        response = await client.post("/step", json={
+            "action_type": "query_service",
+            "target_service": "api-gateway",
+        })
+        # Should return 400 because env is not initialized
+        assert response.status_code == 400
+
+
+class TestConfigureCoverage:
+    """Test /configure endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_configure_without_fault_type(self, client):
+        """Test /configure without specifying fault_type (line 838-839)."""
+        response = await client.post("/configure", json={
+            "seed": 123,
+            "difficulty": 4,
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("configured") is True

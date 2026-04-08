@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+tests/
+*.test.py
+
+# Development
+.env
+.env.local
+.env.*.local
+.venv/
+venv/
+ENV/
+
+# Node (already has node_modules but be thorough)
+dashboard/node_modules
+
+# Logs and outputs
+logs/
+output.log
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Documentation (not needed in image)
+*.md
+docs/
+
+# CI/CD
+.github/
+.github/workflows/

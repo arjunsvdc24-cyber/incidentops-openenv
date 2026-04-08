@@ -1,0 +1,35 @@
+# IncidentOps v14.0.0 - Production Requirements
+# Docker image: python:3.11-slim
+# Install: pip install -r requirements.txt
+
+# Core Web
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+slowapi>=0.1.9
+
+# LLM / AI
+openai>=1.0.0
+requests>=2.31.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.0
+aiosqlite>=0.19.0
+alembic>=1.12.0
+
+# Auth
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.0.0,<5.0
+python-dotenv>=1.0.0
+email-validator>=2.0.0
+
+# Observability
+prometheus-client>=0.18.0
+
+# RL / ML
+stable-baselines3>=2.0.0
+gymnasium>=0.28.0
+
+# Utils
+httpx>=0.25.0
