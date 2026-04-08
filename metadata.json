@@ -1,0 +1,8 @@
+{
+  "title": "IncidentOps",
+  "description": "Gym-style RL environment for SRE incident response training",
+  "sdk": "docker",
+  "hardware": "medium",
+  "emoji": "🚨",
+  "tags": ["reinforcement-learning", "sre", "incident-management", "microservices"]
+}

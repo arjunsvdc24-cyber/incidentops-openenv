@@ -70,5 +70,8 @@ docker-compose*.yml
 incidentops.db
 *.sqlite
 
+# Build artifacts (stale static assets tracked in git — use builder output instead)
+app/static/
+
 # Extra: keep CLAUDE.md for project-level context at runtime
 CLAUDE.md

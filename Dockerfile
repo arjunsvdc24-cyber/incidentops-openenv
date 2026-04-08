@@ -48,7 +48,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy built React dashboard from builder stage
-COPY --from=builder /app/dashboard/dist ./app/static
+COPY --from=builder /app/dashboard/dist ./dashboard/dist
 
 # Copy application files
 COPY app/ ./app/
