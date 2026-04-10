@@ -1,3 +1,4 @@
+from typing import Any, Optional
 """
 IncidentOps - Reasoning-Quality Reward Function v12.0
 
@@ -18,7 +19,6 @@ Penalties:
 - -0.05 actions without new info
 """
 from dataclasses import dataclass, field
-from typing import Optional, Set, List, Dict
 from enum import Enum
 
 
@@ -63,8 +63,8 @@ class ReasoningRewardBreakdown:
     decision_quality_score: float = 0.0
     
     # Debug
-    reasoning_steps: List[str] = field(default_factory=list)
-    decisions_made: List[str] = field(default_factory=list)
+    reasoning_steps: list[str] = field(default_factory=list)
+    decisions_made: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -103,16 +103,16 @@ class ReasoningRewardCalculator:
     
     def reset(self) -> None:
         """Reset for new episode"""
-        self.dependency_traces: List[tuple] = []
-        self.misleading_signals_identified: List[str] = []
-        self.deploy_correlations: List[dict] = []
-        self.correct_queries: List[str] = []
-        self.incorrect_assumptions: List[str] = []
-        self.ignored_signals: List[str] = []
-        self.key_signals: Set[str] = set()
+        self.dependency_traces: list[tuple] = []
+        self.misleading_signals_identified: list[str] = []
+        self.deploy_correlations: list[dict] = []
+        self.correct_queries: list[str] = []
+        self.incorrect_assumptions: list[str] = []
+        self.ignored_signals: list[str] = []
+        self.key_signals: set[str] = set()
         
-        self.root_cause_attempts: List[str] = []
-        self.fix_attempts: List[tuple] = []
+        self.root_cause_attempts: list[str] = []
+        self.fix_attempts: list[tuple] = []
         
         self.memory_used_correctly: bool = False
         self.correct_root_cause_identified: bool = False
@@ -120,14 +120,14 @@ class ReasoningRewardCalculator:
         
         # Fault context
         self.actual_root_cause: Optional[str] = None
-        self.affected_services: Set[str] = set()
-        self.misleading_services: Set[str] = set()
+        self.affected_services: set[str] = set()
+        self.misleading_services: set[str] = set()
     
     def set_fault_context(
         self,
         root_cause: str,
-        affected: Set[str],
-        misleading: Optional[Set[str]] = None
+        affected: set[str],
+        misleading: Optional[set[str]] = None
     ) -> None:
         """Set fault context"""
         self.actual_root_cause = root_cause
@@ -135,7 +135,7 @@ class ReasoningRewardCalculator:
         self.misleading_services = misleading or set()
         self.key_signals = {root_cause} | affected
     
-    def set_key_signals(self, signals: List[str]) -> None:
+    def set_key_signals(self, signals: list[str]) -> None:
         """Set signals that should not be ignored"""
         self.key_signals = set(signals)
     

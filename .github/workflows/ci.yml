@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-lint-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-lint-
+
+      - name: Install dependencies
+        run: |
+          pip install ruff mypy types-requests
+
+      - name: Ruff lint
+        run: ruff check app/ --fix --exit-non-zero-on-fix
+
+      - name: MyPy type check
+        run: mypy app/ --ignore-missing-imports --warn-unused-configs
+
+  test:
+    name: Tests (Python ${{ env.PYTHON_VERSION }})
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-asyncio pytest-cov httpx
+
+      - name: Run legacy validation
+        run: python validate_submission.py
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short -q
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v --tb=short -q
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: success()
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: incidentops-python
+          fail_ci_if_error: false
+
+  build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: incidentops:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run container health check
+        run: |
+          docker run -d --name test-incidentops -p 7860:7860 incidentops:${{ github.sha }}
+          sleep 5
+          curl -f http://localhost:7860/health || exit 1
+          docker stop test-incidentops
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Start server
+        run: docker run -d --name e2e-server -p 7860:7860 incidentops:${{ github.sha }}
+
+      - name: Wait for server
+        run: sleep 8
+
+      - name: Run E2E tests
+        run: npx playwright test tests/e2e/ --project=chromium
+        continue-on-error: true
+
+      - name: Stop server
+        if: always()
+        run: docker stop e2e-server

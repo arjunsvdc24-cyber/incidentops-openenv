@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Deep Trajectory Grader v11.0
 
@@ -26,7 +27,6 @@ Features:
 - Extended quality dimensions for SRE excellence
 """
 from dataclasses import dataclass, field
-from typing import Optional
 from enum import Enum
 import json
 import math
@@ -46,7 +46,7 @@ class ActionAnalysis:
     """Analysis of a single action"""
     step: int
     action_type: str
-    target_service: Optional[str]
+    target_service: str | None
     is_investigation: bool
     is_intervention: bool
     is_necessary: bool
@@ -97,7 +97,7 @@ class DetailedScore:
     grade: ScoreGrade = ScoreGrade.FAILED
 
     # Analysis
-    trajectory_analysis: Optional[TrajectoryAnalysis] = None
+    trajectory_analysis: TrajectoryAnalysis | None = None
 
     # Debug
     debug_explanation: list[str] = field(default_factory=list)

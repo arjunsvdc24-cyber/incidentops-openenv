@@ -1,8 +1,7 @@
 """
 IncidentOps - Leaderboard Repository
 """
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
 
 from sqlalchemy import select, desc, func, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -22,7 +21,7 @@ class LeaderboardRepository:
         fault_type: str,
         grader_type: str,
         final_score: float,
-        episode_avg: Optional[float] = None,
+        episode_avg: float | None = None,
     ) -> LeaderboardEntry:
         """Insert or update leaderboard entry for a user+task combo"""
         existing = await self.session.execute(
@@ -50,7 +49,7 @@ class LeaderboardRepository:
             total = entry.avg_score * entry.episode_count + final_score
             entry.episode_count += 1
             entry.avg_score = total / entry.episode_count
-            entry.updated_at = datetime.utcnow()
+            entry.updated_at = datetime.now(timezone.utc)
 
         await self.session.flush()
         await self.session.refresh(entry)
@@ -90,7 +89,7 @@ class LeaderboardRepository:
         user_id: int,
         task_id: str,
         grader_type: str = "enhanced",
-    ) -> Optional[int]:
+    ) -> int | None:
         result = await self.session.execute(
             select(LeaderboardEntry.best_score).where(
                 LeaderboardEntry.user_id == user_id,

@@ -32,7 +32,19 @@ export function TaskCard({ task, onStartEpisode }: TaskCardProps) {
   };
 
   return (
-    <div className="flex flex-col bg-surface border border-border rounded-xl overflow-hidden hover:border-accent/50 transition-all group">
+    <div
+      className="flex flex-col bg-surface border border-border rounded-xl overflow-hidden hover:border-accent/50 transition-all group cursor-pointer"
+      tabIndex={0}
+      role="button"
+      onClick={handleStartEpisode}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleStartEpisode();
+        }
+      }}
+      aria-label={`Start episode for task: ${task.name}`}
+    >
       <div className="p-4 flex-1">
         <div className="flex items-start justify-between gap-2 mb-3">
           <h3 className="text-lg font-semibold text-text-primary group-hover:text-accent transition-colors">

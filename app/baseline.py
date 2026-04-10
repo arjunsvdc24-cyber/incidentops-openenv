@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Baseline Agent v10.0
 
@@ -12,8 +13,8 @@ Features:
 - Reasoning depth adjustment
 - Exploration strategy tuning
 """
+import logging
 from dataclasses import dataclass, field
-from typing import Optional
 import random
 from enum import Enum
 
@@ -47,7 +48,7 @@ class AgentAction:
     """Record of an agent action"""
     step: int
     action_type: str
-    target_service: Optional[str]
+    target_service: str | None
     reasoning: str
     confidence: float
 
@@ -83,7 +84,7 @@ class BaselineAgent:
         "database-replica",
     ]
     
-    def __init__(self, config: Optional[AgentConfig] = None):
+    def __init__(self, config: AgentConfig | None = None):
         """Initialize agent with configuration"""
         self.config = config or AgentConfig()
         self.rng = random.Random(self.config.seed)
@@ -93,19 +94,19 @@ class BaselineAgent:
         self.investigated_services: set[str] = set()
         self.deep_investigated: set[str] = set()  # services with both metrics + logs
         self.candidate_root_causes: list[str] = []
-        self.identified_root_cause: Optional[str] = None
+        self.identified_root_cause: str | None = None
         self.fix_applied: bool = False
         self._reordered_candidates: bool = False
         self.action_history: list[AgentAction] = []
         
         # Observation tracking
-        self.last_observation: Optional[dict] = None
+        self.last_observation: dict | None = None
         self.service_states: dict = {}
         self.alerts: list[dict] = []
         self.service_graph: dict = {}
         self.deploy_timeline: list = []
     
-    def reset(self, seed: Optional[int] = None) -> None:
+    def reset(self, seed: int | None = None) -> None:
         """Reset agent state for new episode"""
         if seed is not None:
             self.config.seed = seed
@@ -675,7 +676,7 @@ class BaselineAgent:
 
 def run_baseline_episode(
     env,
-    agent: Optional[BaselineAgent] = None,
+    agent: BaselineAgent | None = None,
     seed: int = 42,
     max_steps: int = 20,
     verbose: bool = True
@@ -704,22 +705,19 @@ def run_baseline_episode(
     steps = 0
     
     if verbose:
-        print(f"\n{'='*60}")
-        print(f"BASELINE AGENT EPISODE (seed={seed})")
-        print(f"{'='*60}")
+        logging.info(f"BASELINE AGENT EPISODE (seed={seed})")
         scenario = obs.get("incident_info", {})
-        print(f"Scenario: {scenario.get('fault_type', 'unknown')} (difficulty: {scenario.get('difficulty', '?')})")
-        print(f"{'='*60}\n")
+        logging.info(f"Scenario: {scenario.get('fault_type', 'unknown')} (difficulty: {scenario.get('difficulty', '?')})")
     
     for step in range(max_steps):
         # Get action from agent
         action = agent.act(obs)
         
         if verbose:
-            print(f"Step {step}: {action.get('action_type', '?')}", end="")
+            msg = f"Step {step}: {action.get('action_type', '?')}"
             if action.get("target_service"):
-                print(f" -> {action.get('target_service')}", end="")
-            print()
+                msg += f" -> {action.get('target_service')}"
+            logging.info(msg)
         
         # Execute action
         response = env.step(action)
@@ -732,7 +730,7 @@ def run_baseline_episode(
         # Check termination
         if response.terminated or response.truncated:  # pragma: no cover
             if verbose:  # pragma: no cover
-                print(f"\nEpisode ended: {'terminated' if response.terminated else 'truncated'}")  # pragma: no cover
+                logging.info(f"Episode ended: {'terminated' if response.terminated else 'truncated'}")  # pragma: no cover
             break  # pragma: no cover
     
     # Get summary — use EnhancedSREGrader for difficulty-aware scoring
@@ -757,14 +755,8 @@ def run_baseline_episode(
     score = evaluation.breakdown.final_score
     
     if verbose:
-        print(f"\n{'='*60}")
-        print("EPISODE SUMMARY")
-        print(f"{'='*60}")
-        print(f"Steps: {steps}")
-        print(f"Total Reward: {total_reward:.4f}")
-        print(f"Final Score: {evaluation.breakdown.final_score:.4f}")
-        print(f"Grade: {evaluation.breakdown.grade.value.upper()}")
-        print(f"{'='*60}\n")
+        logging.info("EPISODE SUMMARY")
+        logging.info(f"Steps: {steps}, Total Reward: {total_reward:.4f}, Final Score: {evaluation.breakdown.final_score:.4f}, Grade: {evaluation.breakdown.grade.value.upper()}")
 
     return {
         "steps": steps,
@@ -833,7 +825,7 @@ def tune_agent_performance(
         }
         
         if verbose:  # pragma: no cover
-            print(f"{category.upper()}: avg={avg_score:.3f}, target={target:.3f}, "  # pragma: no cover
-                  f"{'PASS' if abs(avg_score - target) < 0.1 else 'ADJUST'}")  # pragma: no cover
+            status = 'PASS' if abs(avg_score - target) < 0.1 else 'ADJUST'
+            logging.info(f"{category.upper()}: avg={avg_score:.3f}, target={target:.3f}, {status}")  # pragma: no cover
     
     return results

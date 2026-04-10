@@ -12,7 +12,6 @@ Automated test script.
 import sys
 import json
 import time
-from typing import Dict, List
 from dataclasses import dataclass
 
 
@@ -22,7 +21,7 @@ class ValidationResult:
     test_name: str
     passed: bool
     message: str
-    details: Dict = None
+    details: dict = None
 
 
 class ValidationRunner:
@@ -39,9 +38,9 @@ class ValidationRunner:
     
     def __init__(self, seed: int = 42):
         self.seed = seed
-        self.results: List[ValidationResult] = []
+        self.results: list[ValidationResult] = []
     
-    def run_all(self) -> Dict:
+    def run_all(self) -> dict:
         """Run all validation tests"""
         print("=" * 60)
         print("IncidentOps v11.0 - Full Validation Suite")
@@ -337,7 +336,7 @@ class ValidationRunner:
         ))
         print(f"  ✗ {test_name}: {message}")
     
-    def _generate_summary(self) -> Dict:
+    def _generate_summary(self) -> dict:
         """Generate summary of all tests"""
         total = len(self.results)
         passed = sum(1 for r in self.results if r.passed)
@@ -372,7 +371,7 @@ class ValidationRunner:
         }
 
 
-def run_validation(seed: int = 42) -> Dict:
+def run_validation(seed: int = 42) -> dict:
     """
     Run full validation suite.
     

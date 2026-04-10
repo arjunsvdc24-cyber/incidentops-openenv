@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useUIStore, useAuthStore } from '../stores/episodeStore';
 import { getHealth } from '../api/client';
@@ -73,13 +73,18 @@ export function Layout({ children }: LayoutProps) {
   });
 
   const apiHealthy = healthData?.status === 'ok';
+  const location = useLocation();
 
   return (
     <div className="flex h-screen bg-bg overflow-hidden">
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-surface border-b border-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={toggleSidebar} className="text-text-secondary hover:text-text-primary">
+          <button
+            onClick={toggleSidebar}
+            className="text-text-secondary hover:text-text-primary"
+            aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -89,7 +94,11 @@ export function Layout({ children }: LayoutProps) {
         {isAuthenticated && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-secondary font-mono">{username}</span>
-            <button onClick={logout} className="text-text-secondary hover:text-danger">
+            <button
+                  onClick={logout}
+                  className="text-text-secondary hover:text-danger"
+                  aria-label="Logout"
+                >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
@@ -111,6 +120,8 @@ export function Layout({ children }: LayoutProps) {
         className={`fixed lg:static inset-y-0 left-0 z-40 w-56 bg-surface border-r border-border transform transition-transform duration-200 pointer-events-auto ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
+        role="navigation"
+        aria-label="Main navigation"
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
@@ -145,6 +156,7 @@ export function Layout({ children }: LayoutProps) {
                           : 'text-text-secondary hover:bg-bg hover:text-text-primary border-l-2 border-transparent'
                       }`
                     }
+                    aria-current={location.pathname === item.path ? 'page' : undefined}
                   >
                     {ICONS[item.icon]}
                     <span>{item.label}</span>
@@ -168,6 +180,7 @@ export function Layout({ children }: LayoutProps) {
                   onClick={logout}
                   className="p-1 text-text-muted hover:text-danger transition-colors"
                   title="Logout"
+                  aria-label="Logout"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -178,6 +191,7 @@ export function Layout({ children }: LayoutProps) {
               <NavLink
                 to="/profile"
                 className="flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-mono bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                aria-label="Sign in to your account"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

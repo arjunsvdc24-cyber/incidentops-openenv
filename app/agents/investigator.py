@@ -1,10 +1,10 @@
+from typing import Any
 """
 IncidentOps - Investigator Agent
 
 Systematically gathers evidence by querying services, logs, metrics,
 and dependencies. Builds suspicion scores to identify the root cause.
 """
-from typing import Optional, Dict, Set
 from app.agents.base import BaseAgent, AgentObservation, AgentDecision, AgentRole
 from app.models import ActionType, VALID_SERVICES
 
@@ -33,9 +33,9 @@ class InvestigatorAgent(BaseAgent):
     ]
 
     def __init__(self) -> None:
-        self._services_queried: Set[str] = set()
-        self._evidence: Dict[str, list] = {}
-        self._suspicion_scores: Dict[str, float] = {}
+        self._services_queried: set[str] = set()
+        self._evidence: dict[str, list] = {}
+        self._suspicion_scores: dict[str, float] = {}
         self._steps_without_progress: int = 0
         self._last_info_count: int = 0
         self._seed: int = 42
@@ -203,13 +203,13 @@ class InvestigatorAgent(BaseAgent):
             return 0.0
         return max(self._suspicion_scores.values())
 
-    def get_suspect_service(self) -> Optional[str]:
+    def get_suspect_service(self) -> str | None:
         """Get the service with highest suspicion"""
         if not self._suspicion_scores:  # pragma: no cover
             return None  # pragma: no cover
         return max(self._suspicion_scores, key=self._suspicion_scores.get)
 
-    def get_investigation_summary(self) -> Dict[str, any]:
+    def get_investigation_summary(self) -> dict[str, any]:
         """Get summary of investigation progress"""
         return {
             "services_queried": list(self._services_queried),

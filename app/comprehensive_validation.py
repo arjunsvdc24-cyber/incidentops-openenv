@@ -1,3 +1,4 @@
+from typing import Any
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -16,7 +17,7 @@ import sys
 import json
 import time
 import io
-from typing import Dict, List, Optional
+import logging
 from dataclasses import dataclass, field
 
 # Fix Windows UTF-8 output
@@ -31,7 +32,7 @@ class TestResult:
     category: str
     passed: bool
     message: str
-    details: Dict = field(default_factory=dict)
+    details: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -43,8 +44,8 @@ class ValidationReport:
     skipped: int = 0
     pass_rate: float = 0.0
     all_passed: bool = False
-    results: List[TestResult] = field(default_factory=list)
-    categories: Dict[str, Dict] = field(default_factory=dict)
+    results: list[TestResult] = field(default_factory=list)
+    categories: dict[str, dict] =field(default_factory=dict)
     
     def to_dict(self) -> dict:
         return {

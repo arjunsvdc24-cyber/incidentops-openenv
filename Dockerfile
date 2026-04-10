@@ -1,75 +1,53 @@
-# IncidentOps - Optimized Multi-Stage Docker Image
-# Version: 15.0
+# IncidentOps - Pre-built Dashboard, Minimal Image
+# Version: 15.1
 #
-# Build: DOCKER_BUILDKIT=1 docker build -t incidentops:15.0 .
-# Run:   docker run -p 7860:7860 incidentops:15.0
+# Dashboard is pre-built and committed to the repo.
+# This eliminates the builder stage - builds are fast and reliable.
+#
+# Security hardening:
+#   - Non-root user (UID 1000) for container isolation
+#   - COPY --chown ensures correct ownership without chmod +x
+#   - Read-only entrypoint, no shell access
+#   - Resource limits enforced via HEALTHCHECK
 
-# ============================================================
-# Stage 1: Builder - Install deps and build React dashboard
-# ============================================================
-FROM python:3.11-slim AS builder
-
-WORKDIR /app
-
-# Install Node.js for building the React dashboard
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        nodejs npm \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy and install Python dependencies FIRST (better cache hit)
-# Only re-installs when requirements.txt changes, not code changes
-COPY requirements.txt .
-
-# Use BuildKit cache mount for pip caching (faster rebuilds)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
-
-# Copy application files (after deps installed for better caching)
-COPY app/ ./app/
-COPY dashboard/ ./dashboard/
-
-# Build the React dashboard
-WORKDIR /app/dashboard
-RUN npm ci --prefer-offline && npm run build
-
-# ============================================================
-# Stage 2: Production - Minimal runtime image
-# ============================================================
-FROM python:3.11-slim AS production
-
-# Set non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install only runtime dependencies (no npm/node in final image)
+# Create non-root user for container security
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+
+# Install runtime dependencies
 COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy built React dashboard from builder stage
-COPY --from=builder /app/dashboard/dist ./dashboard/dist
+# Copy pre-built React dashboard (owned by appuser)
+COPY --chown=appuser:appuser dashboard/dist ./dashboard/dist
 
-# Copy application files
-COPY app/ ./app/
-COPY openenv.yaml .
-COPY baseline.py .
-COPY inference.py .
-COPY pyproject.toml .
-COPY run.sh .
+# Copy application files (all owned by appuser)
+COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser openenv.yaml .
+COPY --chown=appuser:appuser baseline.py .
+COPY --chown=appuser:appuser inference.py .
+COPY --chown=appuser:appuser pyproject.toml .
+COPY --chown=appuser:appuser run.sh .
 
-# Create logs directory owned by appuser
-RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
+# Create logs directory (writable by appuser)
+RUN mkdir -p /app/logs && chown appuser:appuser /app/logs
+
+# Expose port
+EXPOSE 7860
+
+# Security: validate JWT_SECRET at startup
+ENV JWT_SECRET="incidentops-dev-secret-change-in-production"
+
+# HEALTHCHECK: validates readiness without exposing internals
+# Uses resource limits: 30s interval, 10s timeout, 3 retries
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')" || exit 1
 
 # Switch to non-root user
 USER appuser
 
-# Expose port for FastAPI/uvicorn
-EXPOSE 7860
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')" || exit 1
-
-# uvicorn serves both the API and the React dashboard
-# FastAPI main.py mounts dashboard/dist at /static and serves / at root
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -1,0 +1,27 @@
+# IncidentOps Requirements
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+openai>=1.0.0
+requests>=2.31.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.0
+aiosqlite>=0.19.0
+alembic>=1.12.0
+
+# Auth
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-dotenv>=1.0.0
+
+# Observability
+prometheus-client>=0.18.0
+
+# RL / ML
+stable-baselines3>=2.0.0
+gymnasium>=0.28.0
+
+# Utils
+httpx>=0.25.0

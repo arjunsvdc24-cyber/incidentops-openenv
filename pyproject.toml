@@ -1,6 +1,6 @@
 [project]
 name = "incidentops"
-version = "14.0.0"
+version = "15.0"
 description = "Production Incident Response RL Environment — SRE Training Platform"
 readme = "README.md"
 license = {text = "MIT"}
@@ -23,6 +23,7 @@ dependencies = [
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.5.0",
     "python-multipart>=0.0.6",
+    "slowapi>=0.1.9",
     "openai>=1.0.0",
     "requests>=2.31.0",
     # Database
@@ -33,6 +34,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     "python-dotenv>=1.0.0",
+    "email-validator>=2.0.0",
     # Observability
     "prometheus-client>=0.18.0",
     # RL / ML
@@ -40,7 +42,13 @@ dependencies = [
     "gymnasium>=0.28.0",
     # Utils
     "httpx>=0.25.0",
+    # OpenEnv spec compliance
+    "openenv-core>=0.2.0",
 ]
+
+# Entry point for multi-mode deployment
+[project.scripts]
+server = "server.app:app"
 
 [project.optional-dependencies]
 dev = [
@@ -52,7 +60,7 @@ dev = [
     "types-requests>=2.31.0",
 ]
 e2e = [
-    "@playwright/test>=1.40.0",
+    "playwright>=1.40.0",
 ]
 
 [project.urls]
@@ -64,8 +72,8 @@ HuggingFace = "https://huggingface.co/spaces/incidentops"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
@@ -90,7 +98,7 @@ show_missing = true
 line-length = 120
 target-version = "py311"
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+ignore = ["E501", "UP006", "UP007"]
 
 [tool.mypy]
 python_version = "3.11"

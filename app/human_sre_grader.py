@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Human SRE Evaluation Grader v12.0
 
@@ -15,7 +16,6 @@ Returns score and human-readable explanation.
 Deterministic scoring.
 """
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Set, Tuple
 from enum import Enum
 
 
@@ -76,16 +76,16 @@ class HumanSREEvaluation:
     grade: SREGrade = SREGrade.UNTRAINED
     
     # Analysis
-    misleading_paths: List[MisleadingPathAnalysis] = field(default_factory=list)
-    unnecessary_actions: List[str] = field(default_factory=list)
-    correct_actions: List[str] = field(default_factory=list)
-    key_signals_missed: List[str] = field(default_factory=list)
+    misleading_paths: list[MisleadingPathAnalysis] = field(default_factory=list)
+    unnecessary_actions: list[str] = field(default_factory=list)
+    correct_actions: list[str] = field(default_factory=list)
+    key_signals_missed: list[str] = field(default_factory=list)
     
     # Human-readable output
     summary: str = ""
     explanation: str = ""
     reasoning_analysis: str = ""
-    suggestions: List[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
 
 
 class HumanSREGrader:
@@ -124,15 +124,15 @@ class HumanSREGrader:
     
     def grade(
         self,
-        trajectory: Dict,
-        scenario: Dict
+        trajectory: dict,
+        scenario: dict
     ) -> HumanSREEvaluation:
         """
         Grade trajectory like a human SRE.
         
         Args:
             trajectory: Dict with actions, rewards, final_state
-            scenario: Dict with fault_type, root_cause, affected, misleading
+            scenario: dict with fault_type, root_cause, affected, misleading
             
         Returns:
             HumanSREEvaluation with complete analysis
@@ -209,10 +209,10 @@ class HumanSREGrader:
     
     def _detect_misleading_paths(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         root_cause: str,
-        misleading_services: Set[str]
-    ) -> List[MisleadingPathAnalysis]:
+        misleading_services: set[str]
+    ) -> list[MisleadingPathAnalysis]:
         """Detect if agent followed misleading paths too long"""
         paths = []
         
@@ -248,10 +248,10 @@ class HumanSREGrader:
     
     def _detect_unnecessary_actions(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         root_cause: str,
-        affected: Set[str]
-    ) -> List[str]:
+        affected: set[str]
+    ) -> list[str]:
         """Detect unnecessary actions"""
         unnecessary = []
         relevant = {root_cause} | affected
@@ -275,7 +275,7 @@ class HumanSREGrader:
         
         return unnecessary
     
-    def _eval_root_cause(self, actions: List[Dict], root_cause: str) -> float:
+    def _eval_root_cause(self, actions: list[dict], root_cause: str) -> float:
         """Evaluate root cause identification"""
         for action in actions:
             if action.get("action_type") == "identify_root_cause":
@@ -287,8 +287,8 @@ class HumanSREGrader:
     
     def _eval_fix(
         self,
-        actions: List[Dict],
-        final_state: Dict,
+        actions: list[dict],
+        final_state: dict,
         root_cause: str
     ) -> float:
         """Evaluate fix correctness"""
@@ -330,9 +330,9 @@ class HumanSREGrader:
     
     def _eval_disruption(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         root_cause: str,
-        affected: Set[str]
+        affected: set[str]
     ) -> float:
         """Evaluate minimal disruption"""
         relevant = {root_cause} | affected
@@ -359,7 +359,7 @@ class HumanSREGrader:
         else:
             return max(0.0, 1.0 - len(unrelated) * 0.2)  # pragma: no cover
     
-    def _eval_reasoning(self, actions: List[Dict], scenario: Dict) -> float:
+    def _eval_reasoning(self, actions: list[dict], scenario: dict) -> float:
         """Evaluate reasoning quality"""
         score = 0.0
         
@@ -463,7 +463,7 @@ class HumanSREGrader:
         
         return "\n".join(lines)
     
-    def _generate_suggestions(self, eval_result: HumanSREEvaluation) -> List[str]:
+    def _generate_suggestions(self, eval_result: HumanSREEvaluation) -> list[str]:
         """Generate improvement suggestions"""
         suggestions = []
         
@@ -484,8 +484,8 @@ class HumanSREGrader:
 
 
 def grade_like_human_sre(
-    trajectory: Dict,
-    scenario: Dict,
+    trajectory: dict,
+    scenario: dict,
     seed: int = 42
 ) -> HumanSREEvaluation:
     """Quick helper function"""

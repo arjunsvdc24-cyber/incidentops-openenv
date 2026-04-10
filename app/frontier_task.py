@@ -13,8 +13,8 @@ Requires 6-8 steps minimum.
 Deterministic.
 """
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
 from datetime import datetime, timedelta
+from typing import Optional
 import random
 
 
@@ -44,9 +44,9 @@ class FrontierScenario:
     scenario_id: str
     difficulty: int  # Always 5 for frontier
     dual_layer_failure: DualLayerFailure
-    deceptive_signals: List[DeceptiveSignal]
-    timeline_events: List[dict]
-    correct_investigation_path: List[str]
+    deceptive_signals: list[DeceptiveSignal]
+    timeline_events: list[dict]
+    correct_investigation_path: list[str]
     minimum_steps: int = 6
 
 
@@ -111,7 +111,7 @@ class FrontierTaskGenerator:
             minimum_steps=6,
         )
     
-    def _generate_deceptive_signals(self) -> List[DeceptiveSignal]:
+    def _generate_deceptive_signals(self) -> list[DeceptiveSignal]:
         """Generate deceptive signals"""
         signals = []
         
@@ -180,7 +180,7 @@ class FrontierTaskGenerator:
         
         return signals
     
-    def _generate_timeline(self) -> List[dict]:
+    def _generate_timeline(self) -> list[dict]:
         """Generate timeline with temporal dependency"""
         base_time = datetime(2024, 1, 15, 10, 0, 0)
         
@@ -298,8 +298,8 @@ class DeceptiveSignalGenerator:
     def generate_unrelated_warnings(
         self,
         count: int = 2,
-        exclude_services: Optional[List[str]] = None
-    ) -> List[dict]:  # pragma: no cover
+        exclude_services: Optional[list[str]] = None
+    ) -> list[dict]:  # pragma: no cover
         """Generate unrelated warning signals"""
         exclude = set(exclude_services or [])  # pragma: no cover
 
@@ -327,7 +327,7 @@ class DeceptiveSignalGenerator:
         self,
         resolution_step: int,
         delay_steps: int = 2
-    ) -> List[dict]:  # pragma: no cover
+    ) -> list[dict]:  # pragma: no cover
         """
         Generate errors that appear after resolution.
 
@@ -354,7 +354,7 @@ class DeceptiveSignalGenerator:
         self,
         current_step: int,
         delay_steps: int = 3
-    ) -> List[dict]:  # pragma: no cover
+    ) -> list[dict]:  # pragma: no cover
         """Generate metrics that lag behind reality"""
         metrics = []  # pragma: no cover
 
@@ -400,9 +400,9 @@ class DeceptiveSignalGenerator:
     
     def inject_deception_into_logs(
         self,
-        real_logs: List[dict],
+        real_logs: list[dict],
         scenario_type: str = "frontier"
-    ) -> List[dict]:  # pragma: no cover
+    ) -> list[dict]:  # pragma: no cover
         """
         Inject deceptive signals into real logs.
 

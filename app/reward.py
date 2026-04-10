@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Dense Reward Function for Maximum Learning Signal
 
@@ -12,7 +13,6 @@ Reward Philosophy:
 - Smooth gradients to guide learning
 """
 from dataclasses import dataclass, field
-from typing import Optional
 from app.models import ActionType, RewardBreakdown
 
 
@@ -73,7 +73,7 @@ class RewardCalculator:
     4. Penalties guide away from inefficient behaviors
     """
     
-    def __init__(self, config: Optional[RewardConfig] = None):
+    def __init__(self, config: RewardConfig | None = None):
         self.config = config or RewardConfig()
         
         # Track previous state for improvement calculations
@@ -90,15 +90,15 @@ class RewardCalculator:
         self.applied_correct_fix: bool = False
         
         # Fault information (set by environment)
-        self.fault_root_cause: Optional[str] = None
+        self.fault_root_cause: str | None = None
         self.fault_affected_services: set[str] = set()
-        self.fault_type: Optional[str] = None
+        self.fault_type: str | None = None
     
     def set_fault_info(
         self,
         root_cause: str,
         affected_services: set[str],
-        fault_type: Optional[str] = None
+        fault_type: str | None = None
     ) -> None:
         """Set fault information for reward calculation"""
         self.fault_root_cause = root_cause
@@ -121,7 +121,7 @@ class RewardCalculator:
     def calculate_step_reward(
         self,
         action_type: str,
-        target_service: Optional[str],
+        target_service: str | None,
         current_services: dict,
         is_terminated: bool = False,
         used_memory: bool = False,
@@ -226,7 +226,7 @@ class RewardCalculator:
             return True
         return False
     
-    def _is_correct_fix(self, target_service: Optional[str], action_type: str) -> bool:
+    def _is_correct_fix(self, target_service: str | None, action_type: str) -> bool:
         """Check if the fix targets the root cause with the correct action type"""
         if not target_service or not self.fault_root_cause:
             return False
@@ -244,7 +244,7 @@ class RewardCalculator:
         self,
         breakdown: RewardBreakdown,
         action_type: str,
-        target_service: Optional[str]
+        target_service: str | None
     ) -> None:
         """Apply penalties for suboptimal actions"""
         
@@ -268,7 +268,7 @@ class RewardCalculator:
         if self._is_random_action(action_type, target_service):
             breakdown.random_action_penalty = self.config.random_action_penalty
     
-    def _is_random_action(self, action_type: str, target_service: Optional[str]) -> bool:
+    def _is_random_action(self, action_type: str, target_service: str | None) -> bool:
         """Detect if an action appears random or irrelevant"""
         # Scale without reason (service not overloaded)
         if action_type == ActionType.SCALE_SERVICE.value:
@@ -282,7 +282,7 @@ class RewardCalculator:
         
         return False
     
-    def _record_action(self, action_type: str, target_service: Optional[str]) -> None:
+    def _record_action(self, action_type: str, target_service: str | None) -> None:
         """Record action in history"""
         self.action_history.append({
             "action_type": action_type,

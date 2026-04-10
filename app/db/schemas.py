@@ -1,8 +1,8 @@
+from typing import Any
 """
 IncidentOps - Pydantic Schemas for API
 """
 from datetime import datetime
-from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator
 
 
@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 class UserCreate(BaseModel):
     username: str
-    email: Optional[EmailStr] = None
+    email: EmailStr | None = None
     password: str
 
     @field_validator("username")
@@ -38,12 +38,12 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
-    email: Optional[str] = None
+    email: str | None = None
     api_key: str
     is_active: bool
     is_admin: bool
     created_at: datetime
-    last_seen: Optional[datetime] = None
+    last_seen: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -64,22 +64,22 @@ class EpisodeCreate(BaseModel):
     difficulty: int
     seed: int
     agent_type: str = "human"
-    agent_model: Optional[str] = None
+    agent_model: str | None = None
     actions: list
     observations: list
     rewards: list
     total_reward: float
     final_score: float
     grade: str
-    root_cause_score: Optional[float] = None
-    fix_score: Optional[float] = None
-    efficiency_score: Optional[float] = None
-    disruption_score: Optional[float] = None
-    reasoning_score: Optional[float] = None
+    root_cause_score: float | None = None
+    fix_score: float | None = None
+    efficiency_score: float | None = None
+    disruption_score: float | None = None
+    reasoning_score: float | None = None
     num_steps: int
     terminated: bool = False
     truncated: bool = False
-    duration_ms: Optional[int] = None
+    duration_ms: int | None = None
 
 
 class EpisodeResponse(BaseModel):
@@ -89,18 +89,18 @@ class EpisodeResponse(BaseModel):
     difficulty: int
     seed: int
     agent_type: str
-    agent_model: Optional[str] = None
+    agent_model: str | None = None
     total_reward: float
     final_score: float
     grade: str
-    root_cause_score: Optional[float] = None
-    fix_score: Optional[float] = None
-    efficiency_score: Optional[float] = None
-    disruption_score: Optional[float] = None
-    reasoning_score: Optional[float] = None
+    root_cause_score: float | None = None
+    fix_score: float | None = None
+    efficiency_score: float | None = None
+    disruption_score: float | None = None
+    reasoning_score: float | None = None
     num_steps: int
     created_at: datetime
-    duration_ms: Optional[int] = None
+    duration_ms: int | None = None
 
     class Config:
         from_attributes = True
@@ -136,7 +136,7 @@ class LeaderboardEntryResponse(BaseModel):
 
 
 class LeaderboardResponse(BaseModel):
-    task_id: Optional[str] = None
+    task_id: str | None = None
     grader_type: str = "enhanced"
     entries: list[LeaderboardEntryResponse] = []
     total: int = 0

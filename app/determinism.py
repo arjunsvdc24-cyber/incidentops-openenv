@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Determinism Audit Module v10.0
 
@@ -11,7 +12,6 @@ Includes reproducibility test.
 """
 import random
 import hashlib
-from typing import Any, Optional
 from datetime import datetime, timedelta
 
 
@@ -34,7 +34,7 @@ class DeterministicRNG:
         """Get current seed"""
         return self._seed
     
-    def reset(self, seed: Optional[int] = None) -> None:
+    def reset(self, seed: int | None = None) -> None:
         """Reset RNG with new or existing seed"""
         if seed is not None:
             self._seed = seed
@@ -84,7 +84,7 @@ class DeterministicRNG:
         hash_val = hashlib.md5(data.encode()).hexdigest()[:8]
         return f"{prefix}_{hash_val}" if prefix else hash_val
     
-    def deterministic_timestamp(self, base_time: Optional[datetime] = None) -> str:
+    def deterministic_timestamp(self, base_time: datetime | None = None) -> str:
         """
         Generate deterministic timestamp.
         

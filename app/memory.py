@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Deterministic Incident Memory System v10.0
 
@@ -18,7 +19,6 @@ Constraints:
 - Same seed → identical results
 """
 from dataclasses import dataclass, field, asdict
-from typing import Optional
 import json
 import hashlib
 from pathlib import Path
@@ -186,7 +186,7 @@ class IncidentMemory:
         ),
     ]
     
-    def __init__(self, seed: int = 42, storage_path: Optional[str] = None):
+    def __init__(self, seed: int = 42, storage_path: str | None = None):
         """
         Initialize memory.
         
@@ -231,10 +231,10 @@ class IncidentMemory:
     
     def search(
         self,
-        query: Optional[str] = None,
-        symptoms: Optional[list[str]] = None,
-        services: Optional[list[str]] = None,
-        fault_type: Optional[str] = None,
+        query: str | None = None,
+        symptoms: list[str] | None = None,
+        services: list[str] | None = None,
+        fault_type: str | None = None,
         limit: int = 5
     ) -> list[MemoryMatch]:
         """
@@ -359,7 +359,7 @@ class IncidentMemory:
         self,
         symptoms: list[str],
         services: list[str]
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Get the best suggested action based on memory.
         
@@ -529,13 +529,13 @@ class MemoryIntegrator:
     def __init__(self, memory: IncidentMemory):
         self.memory = memory
         self.memory_used = False
-        self.last_suggestion: Optional[dict] = None
+        self.last_suggestion: dict | None = None
     
     def get_memory_suggestion(
         self,
         observation: dict,
         min_confidence: float = 0.5
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Get action suggestion from memory based on observation.
         

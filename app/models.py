@@ -1,8 +1,8 @@
+from typing import Any
 """
 IncidentOps - Pydantic Models with Strict Validation
 """
 from enum import Enum
-from typing import Optional
 from pydantic import BaseModel, field_validator, model_validator
 from datetime import datetime
 
@@ -68,8 +68,8 @@ VALID_SERVICES = {
 class StepRequest(BaseModel):
     """Request model for /step endpoint with strict validation"""
     action_type: str
-    target_service: Optional[str] = None
-    parameters: Optional[dict] = None
+    target_service: str | None = None
+    parameters: dict | None = None
 
     @field_validator('action_type')
     @classmethod
@@ -83,7 +83,7 @@ class StepRequest(BaseModel):
 
     @field_validator('target_service')
     @classmethod
-    def validate_target_service(cls, v: Optional[str]) -> Optional[str]:
+    def validate_target_service(cls, v: str | None) -> str | None:
         if v is not None and v not in VALID_SERVICES:
             raise ValueError(
                 f"Invalid target_service '{v}'. Valid services: {sorted(VALID_SERVICES)}"
@@ -127,8 +127,8 @@ class ServiceInfo(BaseModel):
     error_rate: float
     cpu_percent: float
     memory_percent: float
-    last_deployment: Optional[str] = None
-    version: Optional[str] = None
+    last_deployment: str | None = None
+    version: str | None = None
 
 
 class MetricPoint(BaseModel):

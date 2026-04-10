@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Enhanced Information Tracking System v12.0
 
@@ -10,7 +11,6 @@ Eliminates random guessing by:
 Ensures optimal strategy requires reasoning, not brute force.
 """
 from dataclasses import dataclass, field
-from typing import Optional, Set, Dict, List, Tuple
 from enum import Enum
 from collections import defaultdict
 import hashlib
@@ -30,13 +30,13 @@ class InformationType(str, Enum):
 @dataclass
 class InformationState:
     """Tracks what information has been gathered"""
-    queried_services: Set[str] = field(default_factory=set)
-    queried_metrics: Dict[str, Set[str]] = field(default_factory=dict)
-    queried_logs: Dict[str, int] = field(default_factory=dict)  # service -> count
+    queried_services: set[str] = field(default_factory=set)
+    queried_metrics: dict[str, set[str]] = field(default_factory=dict)
+    queried_logs: dict[str, int] = field(default_factory=dict)  # service -> count
     known_dependencies: bool = False
     known_deployments: bool = False
     memory_queried: bool = False
-    root_cause_candidates: List[str] = field(default_factory=list)
+    root_cause_candidates: list[str] = field(default_factory=list)
     
     def get_state_hash(self) -> str:
         """Get deterministic hash of current state"""
@@ -56,10 +56,10 @@ class InformationState:
 class ActionResult:
     """Result of an action with information tracking"""
     action_type: str
-    target_service: Optional[str]
+    target_service: str | None
     information_gained: bool
-    information_type: Optional[InformationType]
-    new_information: List[str]
+    information_type: InformationType | None
+    new_information: list[str]
     state_changed: bool
     is_redundant: bool
     is_unrelated_restart: bool
@@ -74,7 +74,7 @@ class AntiGuessingPenalties:
     repeated_action_penalty: float = 0.0
     unrelated_restart_penalty: float = 0.0
     total_penalty: float = 0.0
-    reasons: List[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
 
 
 class EnhancedActionTracker:
@@ -118,20 +118,20 @@ class EnhancedActionTracker:
     def reset(self) -> None:
         """Reset all tracking state"""
         self.info_state = InformationState()
-        self.action_history: List[ActionResult] = []
-        self.state_history: List[str] = []  # Hash of states
+        self.action_history: list[ActionResult] = []
+        self.state_history: list[str] = []  # Hash of states
         self.restart_count: int = 0
-        self.services_restarted: Set[str] = set()
+        self.services_restarted: set[str] = set()
         self.step: int = 0
         
         # Track what services are relevant (set by environment)
-        self.relevant_services: Set[str] = set()
-        self.root_cause: Optional[str] = None
+        self.relevant_services: set[str] = set()
+        self.root_cause: str | None = None
     
     def set_fault_context(
         self,
         root_cause: str,
-        affected_services: Set[str]
+        affected_services: set[str]
     ) -> None:
         """Set fault context for relevance tracking"""
         self.root_cause = root_cause
@@ -140,8 +140,8 @@ class EnhancedActionTracker:
     def record_action(
         self,
         action_type: str,
-        target_service: Optional[str],
-        observation: Optional[dict] = None
+        target_service: str | None,
+        observation: dict | None = None
     ) -> ActionResult:
         """
         Record an action and calculate information gain.
@@ -206,9 +206,9 @@ class EnhancedActionTracker:
     def _analyze_information_gain(
         self,
         action_type: str,
-        target_service: Optional[str],
-        observation: Optional[dict]
-    ) -> Tuple[bool, Optional[InformationType], List[str]]:
+        target_service: str | None,
+        observation: dict | None
+    ) -> tuple[bool, InformationType | None, list[str]]:
         """Analyze if action provided new information"""
         new_info = []
         info_type = None
@@ -295,7 +295,7 @@ class EnhancedActionTracker:
     def _check_redundancy(
         self,
         action_type: str,
-        target_service: Optional[str],
+        target_service: str | None,
         state_changed: bool
     ) -> bool:
         """Check if action is redundant"""
@@ -318,7 +318,7 @@ class EnhancedActionTracker:
     def _check_unrelated_restart(
         self,
         action_type: str,
-        target_service: Optional[str]
+        target_service: str | None
     ) -> bool:
         """Check if restart targets unrelated service"""
         if action_type in ("restart_service", "apply_fix") and target_service:
@@ -336,7 +336,7 @@ class EnhancedActionTracker:
         info_gained: bool,
         is_redundant: bool,
         is_unrelated_restart: bool
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """Calculate total penalty"""
         penalty = 0.0
         reasons = []
@@ -363,9 +363,9 @@ class EnhancedActionTracker:
     def _generate_reasoning_hint(
         self,
         action_type: str,
-        target_service: Optional[str],
+        target_service: str | None,
         info_gained: bool,
-        new_info: List[str]
+        new_info: list[str]
     ) -> str:
         """Generate hint for optimal reasoning strategy"""
         if info_gained:

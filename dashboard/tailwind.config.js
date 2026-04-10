@@ -28,6 +28,10 @@ export default {
         'slide-in': 'slideInDown 0.2s ease-out',
         'critical-pulse': 'criticalPulse 1.2s ease-in-out infinite',
         'urgent-pulse': 'urgentPulse 1s ease-in-out infinite',
+        'skeleton-pulse': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.4' },
+        },
       },
     },
   },

@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Enhanced SRE Grader v13.0
 
@@ -23,7 +24,6 @@ Returns:
 Deterministic scoring.
 """
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
 from enum import Enum
 
 
@@ -84,9 +84,9 @@ class ReasoningAnalysis:
     evidence_usage_score: float = 0.0
     
     # Specific issues
-    followed_false_leads: List[str] = field(default_factory=list)
-    missed_key_evidence: List[str] = field(default_factory=list)
-    reasoning_gaps: List[str] = field(default_factory=list)
+    followed_false_leads: list[str] = field(default_factory=list)
+    missed_key_evidence: list[str] = field(default_factory=list)
+    reasoning_gaps: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -100,12 +100,12 @@ class EnhancedEvaluation:
     
     # Narrative
     explanation: str
-    strengths: List[str]
-    weaknesses: List[str]
-    suggestions: List[str]
+    strengths: list[str]
+    weaknesses: list[str]
+    suggestions: list[str]
     
     # Metadata
-    trajectory_id: Optional[str] = None
+    trajectory_id: str | None = None
     total_steps: int = 0
 
 
@@ -168,9 +168,9 @@ class EnhancedSREGrader:
     
     def grade(
         self,
-        trajectory: Dict,
-        scenario: Dict,
-        reasoning_data: Optional[Dict] = None
+        trajectory: dict,
+        scenario: dict,
+        reasoning_data: dict | None = None
     ) -> EnhancedEvaluation:
         """
         Grade trajectory with reasoning quality.
@@ -254,7 +254,7 @@ class EnhancedSREGrader:
             total_steps=len(actions),
         )
     
-    def _score_root_cause(self, actions: List[Dict], root_cause: str) -> float:
+    def _score_root_cause(self, actions: list[dict], root_cause: str) -> float:
         """Score root cause identification with tiered partial credit."""
         if not actions or not root_cause:
             return 0.0
@@ -297,8 +297,8 @@ class EnhancedSREGrader:
     
     def _score_fix(
         self,
-        actions: List[Dict],
-        final_state: Dict,
+        actions: list[dict],
+        final_state: dict,
         root_cause: str,
         fault_type: str
     ) -> float:
@@ -369,10 +369,10 @@ class EnhancedSREGrader:
     
     def _score_disruption(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         root_cause: str,
-        affected: Set[str]
-    ) -> Dict:
+        affected: set[str]
+    ) -> dict:
         """Score minimal disruption"""
         relevant = {root_cause} | affected
         touched = set()
@@ -403,10 +403,10 @@ class EnhancedSREGrader:
     
     def _analyze_reasoning(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         fault_type: str,
         root_cause: str,
-        reasoning_data: Optional[Dict]
+        reasoning_data: dict | None
     ) -> ReasoningAnalysis:
         """Analyze reasoning quality"""
         analysis = ReasoningAnalysis(
@@ -448,7 +448,7 @@ class EnhancedSREGrader:
     
     def _check_logical_path(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         fault_type: str,
         root_cause: str
     ) -> float:
@@ -493,9 +493,9 @@ class EnhancedSREGrader:
     
     def _check_signal_discrimination(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         fault_type: str
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """Check if agent avoided false leads"""
         false_leads = self.FALSE_LEADS.get(fault_type, [])
         followed_false = []
@@ -518,9 +518,9 @@ class EnhancedSREGrader:
     
     def _check_evidence_usage(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         fault_type: str
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """Check if agent used key evidence"""
         key_evidence = self.KEY_EVIDENCE.get(fault_type, [])
         used = []
@@ -541,7 +541,7 @@ class EnhancedSREGrader:
     
     def _determine_pattern(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         logical_path: bool,
         avoided_misleading: bool
     ) -> ReasoningPattern:
@@ -580,9 +580,9 @@ class EnhancedSREGrader:
     
     def _calculate_penalties(
         self,
-        actions: List[Dict],
+        actions: list[dict],
         root_cause: str,
-        affected: Set[str]
+        affected: set[str]
     ) -> float:
         """Calculate additional penalties"""
         penalties = 0.0
@@ -672,7 +672,7 @@ class EnhancedSREGrader:
         self,
         breakdown: ScoringBreakdown,
         reasoning: ReasoningAnalysis
-    ) -> List[str]:
+    ) -> list[str]:
         """Identify strengths"""
         strengths = []
         
@@ -697,7 +697,7 @@ class EnhancedSREGrader:
         self,
         breakdown: ScoringBreakdown,
         reasoning: ReasoningAnalysis
-    ) -> List[str]:
+    ) -> list[str]:
         """Identify weaknesses"""
         weaknesses = []
         
@@ -723,7 +723,7 @@ class EnhancedSREGrader:
         breakdown: ScoringBreakdown,
         reasoning: ReasoningAnalysis,
         fault_type: str
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate actionable improvement suggestions per fault type"""
         suggestions = []
 
@@ -741,7 +741,7 @@ class EnhancedSREGrader:
             suggestions.append("Reduce redundant queries — use query_dependencies once to map all services, then focus on suspicious ones")
 
         # Fault-type-specific actionable suggestions
-        fault_actionable: dict[str, List[str]] = {
+        fault_actionable: dict[str, list[str]] = {
             "ghost": [
                 "Silent faults have no error logs — always check query_metrics for business_metric drift (CTR, conversion)",
                 "query_deployments shows recent changes — correlate deploy time with metric degradation time",
@@ -790,7 +790,7 @@ class EnhancedSREGrader:
 # ── Task → scenario inference ──────────────────────────────────────────────
 
 # Canonical task → (fault_type, root_cause_service, affected_services, difficulty)
-_TASK_SCENARIOS: Dict[str, Dict] = {
+_TASK_SCENARIOS: dict[str, dict] = {
     "oom_crash": {
         "fault_type": "oom",
         "root_cause_service": "payment-service",
@@ -849,7 +849,7 @@ _TASK_SCENARIOS: Dict[str, Dict] = {
 }
 
 
-def infer_scenario_from_task(task: Optional[str], scenario: Optional[Dict]) -> Dict:
+def infer_scenario_from_task(task: str | None, scenario: dict | None) -> dict:
     """Return a valid scenario dict, inferring from task if scenario is sparse/absent."""
     if scenario is None:
         scenario = {}
@@ -874,10 +874,10 @@ def infer_scenario_from_task(task: Optional[str], scenario: Optional[Dict]) -> D
 
 
 def grade_trajectory_enhanced(
-    trajectory: Dict,
-    scenario: Optional[Dict] = None,
+    trajectory: dict,
+    scenario: dict | None = None,
     seed: int = 42,
-    task: Optional[str] = None,
+    task: str | None = None,
 ) -> EnhancedEvaluation:
     """Quick helper for enhanced grading.
 

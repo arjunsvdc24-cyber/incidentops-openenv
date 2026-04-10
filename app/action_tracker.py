@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - Anti-Brute-Force Detection System v11.0
 
@@ -11,24 +12,9 @@ Penalties:
 Tracks action history and detects redundant behavior.
 """
 from dataclasses import dataclass, field
-from typing import Optional, Set, Dict, List
-from enum import Enum
 from collections import defaultdict
 
-
-class ActionType(str, Enum):
-    """Action types for tracking"""
-    QUERY_SERVICE = "query_service"
-    QUERY_METRICS = "query_metrics"
-    QUERY_LOGS = "query_logs"
-    QUERY_DEPENDENCIES = "query_dependencies"
-    QUERY_DEPLOYMENTS = "query_deployments"
-    RESTART_SERVICE = "restart_service"
-    SCALE_SERVICE = "scale_service"
-    ROLLBACK_DEPLOYMENT = "rollback_deployment"
-    QUERY_MEMORY = "query_memory"
-    IDENTIFY_ROOT_CAUSE = "identify_root_cause"
-    APPLY_FIX = "apply_fix"
+from app.models import ActionType
 
 
 @dataclass
@@ -36,9 +22,9 @@ class ActionRecord:
     """Record of a single action"""
     step: int
     action_type: str
-    target_service: Optional[str]
+    target_service: str | None
     new_information: bool = False
-    information_gained: List[str] = field(default_factory=list)
+    information_gained: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -49,7 +35,7 @@ class BruteForcePenalties:
     no_new_info_penalty: float = 0.0
     redundant_action_penalty: float = 0.0
     total_penalty: float = 0.0
-    reasons: List[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
 
 
 class ActionTracker:
@@ -99,13 +85,13 @@ class ActionTracker:
     
     def reset(self) -> None:
         """Reset all tracking state"""
-        self.action_history: List[ActionRecord] = []
-        self.services_restarted: Set[str] = set()
+        self.action_history: list[ActionRecord] = []
+        self.services_restarted: set[str] = set()
         self.restart_count: int = 0
-        self.log_query_counts: Dict[str, int] = defaultdict(int)
-        self.metrics_query_counts: Dict[str, int] = defaultdict(int)
-        self.services_discovered: Set[str] = set()
-        self.information_state: Dict[str, Set[str]] = defaultdict(set)
+        self.log_query_counts: dict[str, int] = defaultdict(int)
+        self.metrics_query_counts: dict[str, int] = defaultdict(int)
+        self.services_discovered: set[str] = set()
+        self.information_state: dict[str, set[str]] = defaultdict(set)
         self.last_action_had_new_info: bool = True
         self.consecutive_no_info_actions: int = 0
     
@@ -113,8 +99,8 @@ class ActionTracker:
         self,
         step: int,
         action_type: str,
-        target_service: Optional[str],
-        observation_result: Optional[dict] = None
+        target_service: str | None,
+        observation_result: dict | None = None
     ) -> ActionRecord:
         """
         Record an action and track its information value.
@@ -151,9 +137,9 @@ class ActionTracker:
     def _check_new_information(
         self,
         action_type: str,
-        target_service: Optional[str],
-        observation_result: Optional[dict]
-    ) -> tuple[bool, List[str]]:
+        target_service: str | None,
+        observation_result: dict | None
+    ) -> tuple[bool, list[str]]:
         """Check if action provides new information"""
         new_info = False
         info_gained = []
@@ -195,7 +181,7 @@ class ActionTracker:
     def _update_tracking(
         self,
         action_type: str,
-        target_service: Optional[str],
+        target_service: str | None,
         had_new_info: bool
     ) -> None:
         """Update tracking state after action"""
@@ -219,8 +205,8 @@ class ActionTracker:
     
     def calculate_penalties(
         self,
-        root_cause: Optional[str] = None,
-        affected_services: Optional[Set[str]] = None
+        root_cause: str | None = None,
+        affected_services: set[str] | None = None
     ) -> BruteForcePenalties:
         """
         Calculate penalties for brute-force behavior.
@@ -335,13 +321,13 @@ class IntelligentActionTracker(ActionTracker):
     
     def __init__(self, seed: int = 42):
         super().__init__(seed)
-        self.relevant_services_discovered: Set[str] = set()
-        self.dependencies_traced: List[tuple] = []
-        self.timeline_correlations: List[dict] = []
-        self.root_cause_service: Optional[str] = None
-        self.affected_services: Set[str] = set()
+        self.relevant_services_discovered: set[str] = set()
+        self.dependencies_traced: list[tuple] = []
+        self.timeline_correlations: list[dict] = []
+        self.root_cause_service: str | None = None
+        self.affected_services: set[str] = set()
 
-    def set_fault_context(self, root_cause: str, affected_services: Set[str]) -> None:
+    def set_fault_context(self, root_cause: str, affected_services: set[str]) -> None:
         """Set fault context for intelligent tracking"""
         self.root_cause_service = root_cause
         self.affected_services = affected_services

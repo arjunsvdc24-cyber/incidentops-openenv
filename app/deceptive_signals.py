@@ -1,3 +1,4 @@
+from typing import Any, Dict
 """
 IncidentOps - Advanced Deceptive Signals v12.0
 
@@ -11,7 +12,6 @@ Sophisticated deceptive signals that require reasoning to overcome:
 Deterministic and solvable with reasoning.
 """
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Tuple
 from enum import Enum
 from datetime import datetime, timedelta
 import random
@@ -33,9 +33,9 @@ class DeceptivePattern:
     pattern_type: DeceptionType
     primary_service: str       # The misleading service
     actual_cause: str          # The actual root cause
-    signals: List[dict]        # The deceptive signals
+    signals: list[dict]        # The deceptive signals
     resolution_hint: str       # How to resolve the deception
-    reasoning_required: List[str]  # Steps needed to overcome
+    reasoning_required: list[str]  # Steps needed to overcome
 
 
 @dataclass
@@ -155,7 +155,7 @@ class DeceptiveSignalGenerator:
         actual_root_cause: str,
         delayed_service: str,
         base_time: datetime
-    ) -> Tuple[DeceptivePattern, List[DelayedLogConfig]]:
+    ) -> tuple[DeceptivePattern, list[DelayedLogConfig]]:
         """
         Generate delayed logs pattern.
         
@@ -229,7 +229,7 @@ class DeceptiveSignalGenerator:
         self,
         service: str,
         actual_root_cause: str
-    ) -> Tuple[DeceptivePattern, ConflictingMetricConfig]:
+    ) -> tuple[DeceptivePattern, ConflictingMetricConfig]:
         """
         Generate conflicting metrics pattern.
         
@@ -512,10 +512,10 @@ class DeceptiveSignalGenerator:
     
     def inject_deception_into_logs(
         self,
-        logs: List[dict],
+        logs: list[dict],
         deception_type: DeceptionType,
         intensity: float = 0.5
-    ) -> List[dict]:
+    ) -> list[dict]:
         """
         Inject deceptive signals into logs.
         
@@ -562,7 +562,7 @@ class DeceptiveSignalGenerator:
     def get_reasoning_path_for_deception(
         self,
         deception_type: DeceptionType
-    ) -> List[str]:
+    ) -> list[str]:
         """Get the correct reasoning path to overcome deception"""
         paths = {
             DeceptionType.FALSE_ROOT_CAUSE: [

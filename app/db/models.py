@@ -1,7 +1,7 @@
 """
 IncidentOps - SQLAlchemy ORM Models
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import (
@@ -11,6 +11,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
+
+
+def _utcnow() -> datetime:
+    """Deterministic UTC timestamp — replaces deprecated datetime.utcnow()"""
+    return datetime.now(timezone.utc)
 
 
 class User(Base):
@@ -24,7 +29,7 @@ class User(Base):
     api_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     last_seen: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationships
@@ -79,7 +84,7 @@ class Episode(Base):
     truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False, index=True)
     duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # User relationship
@@ -114,9 +119,9 @@ class LeaderboardEntry(Base):
     episode_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
     # Relationships

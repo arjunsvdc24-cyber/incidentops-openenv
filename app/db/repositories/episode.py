@@ -1,8 +1,8 @@
+from typing import Any
 """
 IncidentOps - Episode Repository
 """
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,7 @@ class EpisodeRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(self, data: EpisodeCreate, user_id: Optional[int] = None) -> Episode:
+    async def create(self, data: EpisodeCreate, user_id: int | None = None) -> Episode:
         episode = Episode(
             episode_id=data.episode_id,
             user_id=user_id,
@@ -45,13 +45,13 @@ class EpisodeRepository:
         await self.session.refresh(episode)
         return episode
 
-    async def get_by_id(self, episode_id: int) -> Optional[Episode]:
+    async def get_by_id(self, episode_id: int) -> Episode | None:
         result = await self.session.execute(
             select(Episode).where(Episode.id == episode_id)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_episode_id(self, episode_id: str) -> Optional[Episode]:
+    async def get_by_episode_id(self, episode_id: str) -> Episode | None:
         result = await self.session.execute(
             select(Episode).where(Episode.episode_id == episode_id)
         )
@@ -60,7 +60,7 @@ class EpisodeRepository:
     async def list_by_user(
         self,
         user_id: int,
-        fault_type: Optional[str] = None,
+        fault_type: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Episode], int]:
@@ -88,7 +88,7 @@ class EpisodeRepository:
     async def list_by_fault(
         self,
         fault_type: str,
-        difficulty: Optional[int] = None,
+        difficulty: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Episode]:
@@ -103,7 +103,7 @@ class EpisodeRepository:
         result = await self.session.execute(select(func.count(Episode.id)))
         return result.scalar()
 
-    async def avg_score(self, fault_type: Optional[str] = None) -> float:
+    async def avg_score(self, fault_type: str | None = None) -> float:
         query = select(func.avg(Episode.final_score))
         if fault_type:
             query = query.where(Episode.fault_type == fault_type)

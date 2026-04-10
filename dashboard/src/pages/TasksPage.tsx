@@ -47,7 +47,7 @@ export function TasksPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
+      <div className="flex flex-col items-center justify-center py-12" role="alert" aria-live="polite">
         <svg className="w-16 h-16 text-danger mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
@@ -85,13 +85,14 @@ export function TasksPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search tasks..."
             className="w-full pl-10 pr-4 py-2 bg-surface border border-border rounded-lg text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent"
+            aria-label="Search tasks"
           />
         </div>
 
         {/* Difficulty Filter */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-secondary">Difficulty:</span>
-          <div className="flex rounded-lg border border-border overflow-x-auto scrollbar-thin">
+          <div className="flex rounded-lg border border-border overflow-x-auto scrollbar-thin" role="group" aria-label="Difficulty filter">
             {(['all', 'easy', 'medium', 'hard'] as DifficultyFilter[]).map((f) => (
               <button
                 key={f}
@@ -101,6 +102,7 @@ export function TasksPage() {
                     ? 'bg-accent text-white'
                     : 'bg-surface text-text-secondary hover:text-text-primary hover:bg-surface-border'
                 }`}
+                aria-pressed={filter === f}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
                 <span className="ml-1 text-xs opacity-75">({difficultyCounts[f]})</span>
@@ -123,7 +125,7 @@ export function TasksPage() {
           ))}
         </div>
       ) : filteredTasks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
+        <div className="flex flex-col items-center justify-center py-12 text-text-secondary" role="status">
           <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>

@@ -2,8 +2,7 @@
 IncidentOps - User Repository
 """
 import secrets
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,31 +41,31 @@ class UserRepository:
         await self.session.refresh(user)
         return user
 
-    async def get_by_id(self, user_id: int) -> Optional[User]:
+    async def get_by_id(self, user_id: int) -> User | None:
         result = await self.session.execute(
             select(User).where(User.id == user_id)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_username(self, username: str) -> Optional[User]:
+    async def get_by_username(self, username: str) -> User | None:
         result = await self.session.execute(
             select(User).where(User.username == username)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> User | None:
         result = await self.session.execute(
             select(User).where(User.email == email)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_api_key(self, api_key: str) -> Optional[User]:
+    async def get_by_api_key(self, api_key: str) -> User | None:
         result = await self.session.execute(
             select(User).where(User.api_key == api_key)
         )
         return result.scalar_one_or_none()
 
-    async def authenticate(self, username: str, password: str) -> Optional[User]:
+    async def authenticate(self, username: str, password: str) -> User | None:
         user = await self.get_by_username(username)
         if not user or not user.is_active:
             return None
@@ -80,7 +79,7 @@ class UserRepository:
         )
         user = result.scalar_one_or_none()
         if user:
-            user.last_seen = datetime.utcnow()
+            user.last_seen = datetime.now(timezone.utc)
 
     async def count(self) -> int:
         result = await self.session.execute(select(func.count(User.id)))

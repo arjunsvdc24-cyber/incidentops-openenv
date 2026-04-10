@@ -1,10 +1,10 @@
+from typing import Any
 """
 IncidentOps - Fixer Agent
 
 Applies remediations to fix incidents. Works in coordination with
 the Investigator agent which provides suspicion scores.
 """
-from typing import Optional, Dict, Any, List
 from app.agents.base import BaseAgent, AgentObservation, AgentDecision, AgentRole
 from app.models import ActionType
 
@@ -27,7 +27,7 @@ class FixerAgent(BaseAgent):
     role = AgentRole.FIXER
 
     # Maps fault patterns to fix actions
-    FAULT_FIX_MAP: Dict[str, tuple] = {
+    FAULT_FIX_MAP: dict[str, tuple] = {
         "memory": (ActionType.RESTART_SERVICE.value, "memory pressure detected"),
         "oom": (ActionType.RESTART_SERVICE.value, "out of memory error"),
         "crash": (ActionType.RESTART_SERVICE.value, "service crash"),
@@ -44,11 +44,11 @@ class FixerAgent(BaseAgent):
 
     def __init__(self) -> None:
         self._seed: int = 42
-        self._last_fix_service: Optional[str] = None
-        self._last_fix_action: Optional[str] = None
+        self._last_fix_service: str | None = None
+        self._last_fix_action: str | None = None
         self._fix_attempts: int = 0
-        self._fix_history: List[Dict[str, Any]] = []
-        self._current_fault_hypothesis: Optional[str] = None
+        self._fix_history: list[dict[str, Any]] = []
+        self._current_fault_hypothesis: str | None = None
 
     def reset(self, seed: int) -> None:
         """Reset agent state for a new episode"""
@@ -111,7 +111,7 @@ class FixerAgent(BaseAgent):
     def _find_suspected_service(self, observation: AgentObservation) -> str:
         """Find the most likely root cause from action history"""
         # Look at recent actions for clues
-        query_services: List[str] = []
+        query_services: list[str] = []
 
         for action_dict in observation.action_history[-10:]:
             if action_dict.get("action_type") in [
@@ -138,7 +138,7 @@ class FixerAgent(BaseAgent):
     ) -> tuple:
         """Determine the appropriate fix action based on symptoms"""
         # Analyze action history for symptom patterns
-        symptom_keywords: List[str] = []
+        symptom_keywords: list[str] = []
 
         for action_dict in observation.action_history:
             action_type = action_dict.get("action_type", "")
@@ -184,7 +184,7 @@ class FixerAgent(BaseAgent):
             # Reset if fix worked
             self._fix_attempts = 0
 
-    def get_fix_summary(self) -> Dict[str, Any]:
+    def get_fix_summary(self) -> dict[str, Any]:
         """Get summary of fix attempts"""
         return {
             "fix_attempts": self._fix_attempts,

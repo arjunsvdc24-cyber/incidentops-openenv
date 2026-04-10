@@ -6,7 +6,7 @@ Provides fault discovery, listing, and generation.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.determinism import DeterministicRNG

@@ -12,6 +12,7 @@ import { EpisodesPage } from './pages/EpisodesPage';
 import { ReplayPage } from './pages/ReplayPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ValidationPage } from './pages/ValidationPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { useAuthStore } from './stores/episodeStore';
 
 function AppContent() {
@@ -32,6 +33,7 @@ function AppContent() {
         <Route path="/replay/:id" element={<PageTransition><ReplayPage /></PageTransition>} />
         <Route path="/profile" element={<PageTransition><ProfilePage /></PageTransition>} />
         <Route path="/validate" element={<PageTransition><ValidationPage /></PageTransition>} />
+        <Route path="*" element={<PageTransition><NotFoundPage /></PageTransition>} />
       </Routes>
     </Layout>
   );
