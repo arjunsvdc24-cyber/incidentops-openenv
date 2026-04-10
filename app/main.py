@@ -648,6 +648,91 @@ async def get_state():
     }
 
 
+@app.get("/metadata")
+async def get_metadata():
+    """OpenEnv metadata endpoint."""
+    return {
+        "name": "IncidentOps",
+        "description": "Production incident response RL environment for training SRE agents",
+    }
+
+
+@app.get("/schema")
+async def get_schema():
+    """OpenEnv schema endpoint — returns action, observation, and state schemas."""
+    return {
+        "action": {
+            "action_type": {"type": "string", "enum": [a.value for a in ActionType]},
+            "target_service": {"type": "string", "enum": list(VALID_SERVICES)},
+            "parameters": {"type": "object"},
+        },
+        "observation": {
+            "step": {"type": "integer"},
+            "services": {"type": "object"},
+            "alerts": {"type": "array"},
+            "incident_info": {"type": "object"},
+            "information_summary": {"type": "object"},
+        },
+        "state": {
+            "initialized": {"type": "boolean"},
+            "step": {"type": "integer"},
+            "terminated": {"type": "boolean"},
+            "truncated": {"type": "boolean"},
+            "total_reward": {"type": "number"},
+        },
+    }
+
+
+@app.post("/mcp")
+async def mcp_endpoint(request: Request):
+    """Model Context Protocol endpoint — JSON-RPC 2.0 compatible."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    # Support both tool_calls and method-based MCP calls
+    method = body.get("method", "")
+    req_id = body.get("id")
+
+    # Handle tool call style
+    if "tool_calls" in body:
+        return JSONResponse(content={
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {
+                "tools": [
+                    {"name": "reset", "description": "Reset environment", "input_schema": {}},
+                    {"name": "step", "description": "Execute action", "input_schema": {}},
+                    {"name": "state", "description": "Get environment state", "input_schema": {}},
+                    {"name": "tasks", "description": "List available tasks", "input_schema": {}},
+                    {"name": "grader", "description": "Grade trajectory", "input_schema": {}},
+                ]
+            }
+        })
+
+    # Handle standard JSON-RPC
+    responses = {
+        "environment.info": {
+            "name": "IncidentOps",
+            "version": "15.0",
+            "description": "Production incident response RL environment",
+        },
+        "environment.capabilities": {
+            "tools": True,
+            "reset": True,
+            "grader": True,
+            "baseline": True,
+        },
+        "tasks.list": {},
+    }
+
+    if method in responses:
+        return JSONResponse(content={"jsonrpc": "2.0", "id": req_id, "result": responses[method]})
+
+    return JSONResponse(content={"jsonrpc": "2.0", "id": req_id, "result": {}})
+
+
 @app.get("/services")
 async def list_services():
     return {"services": sorted(VALID_SERVICES), "count": len(VALID_SERVICES)}
