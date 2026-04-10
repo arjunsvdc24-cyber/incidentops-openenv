@@ -1,3 +1,6 @@
+# Claude Code settings (may contain tokens)
+.claude/
+
 __pycache__/
 *.pyc
 *.pyo
