@@ -15,7 +15,13 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.main import app, main
+from app.main import app, main as _uvicorn_main
+
+
+def main() -> None:
+    """Main entry point for the server command."""
+    _uvicorn_main()
+
 
 if __name__ == "__main__":
     main()
