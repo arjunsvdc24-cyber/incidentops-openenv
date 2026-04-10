@@ -6,7 +6,7 @@ Provides abstract base class and shared data structures for all agents.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 
 class AgentRole(str, Enum):
@@ -20,9 +20,9 @@ class AgentRole(str, Enum):
 class AgentObservation:
     """What an agent can observe from the environment"""
     step: int
-    action_history: List[Dict[str, Any]]
-    reward_history: List[float]
-    information_summary: Dict[str, Any]
+    action_history: list[dict[str, Any]]
+    reward_history: list[float]
+    information_summary: dict[str, Any]
     reasoning_score: float
     is_guessing: bool
 
@@ -31,8 +31,8 @@ class AgentObservation:
 class AgentDecision:
     """What an agent decides to do"""
     action_type: str
-    target_service: Optional[str] = None
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    target_service: str | None = None
+    parameters: dict[str, Any] = field(default_factory=dict)
     confidence: float = 1.0
     reasoning: str = ""
 
@@ -83,7 +83,7 @@ class BaseAgent(ABC):
         """
         pass  # pragma: no cover
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get agent statistics for monitoring.
 

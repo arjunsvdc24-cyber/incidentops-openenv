@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - FastAPI Application v15.0
 
@@ -40,10 +41,12 @@ Endpoints:
 """
 import os
 import logging
+logger = logging.getLogger(__name__)
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from uuid import uuid4
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Depends, WebSocket, WebSocketDisconnect, Query
@@ -56,6 +59,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator, Field
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# === Request ID correlation ===
+request_id_var: ContextVar[str] = ContextVar("request_id", default="no-request-id")
 
 from app.db import get_db, init_db, close_db
 from app.db.repositories import UserRepository, EpisodeRepository, LeaderboardRepository
@@ -75,52 +81,19 @@ from app.frontier_task import create_frontier_scenario
 from app.information_tracker import EnhancedActionTracker
 from app.comprehensive_validation import run_comprehensive_validation
 
-
-# === JWT Config ===
-
-JWT_SECRET = os.environ.get("JWT_SECRET", "incidentops-dev-secret-change-in-production")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_HOURS = 24 * 7  # 1 week
+# Route modules (split from main.py to reduce file size)
+from app.routes.episodes import router as episodes_router
+from app.routes.agents import router as agents_router
 
 
-def create_access_token(user_id: int, username: str) -> str:
-    payload = {
-        "sub": str(user_id),
-        "username": username,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS),
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-) -> Optional[UserResponse]:
-    """Extract user from JWT Bearer token or API key"""
-    auth_header = request.headers.get("Authorization", "")
-    api_key = request.headers.get("X-API-Key", "")
-
-    user_repo = UserRepository(db)
-
-    # Try Bearer token
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
-        try:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            user_id = int(payload.get("sub", 0))
-            user = await user_repo.get_by_id(user_id)
-            if user and user.is_active:
-                return UserResponse.model_validate(user)
-        except JWTError:
-            pass
-
-    # Try API key
-    if api_key:
-        user = await user_repo.get_by_api_key(api_key)
-        if user and user.is_active:
-            return UserResponse.model_validate(user)
-
-    return None
+# === JWT / Auth (shared via auth_deps to avoid circular imports) ===
+from app.routes.auth_deps import (
+    JWT_SECRET,
+    JWT_ALGORITHM,
+    JWT_EXPIRE_HOURS,
+    create_access_token,
+    get_current_user,
+)
 
 
 # === WebSocket Manager ===
@@ -152,12 +125,16 @@ ws_manager = ConnectionManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    if JWT_SECRET == "incidentops-dev-secret-change-in-production":
-        logging.warning(
-            "SECURITY WARNING: Using default JWT_SECRET in production. "
-            "Set the JWT_SECRET environment variable to a secure random value."
+    # Startup: require JWT_SECRET in production
+    if JWT_SECRET is None:
+        raise RuntimeError(
+            "JWT_SECRET environment variable is not set. "
+            "Set JWT_SECRET to a secure random value before starting the server."
         )
+    logging.warning(
+        "SECURITY WARNING: JWT_SECRET is using the default value. "
+        "Set the JWT_SECRET environment variable to a secure random value in production."
+    )
     await init_db()
     yield
     # Shutdown
@@ -183,6 +160,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Wire shared state so route modules can access ws_manager without circular imports
+from app.routes import state
+state.ws_manager = ws_manager
+
+# Include route modules
+app.include_router(episodes_router)
+app.include_router(agents_router)
+
+
+# === Request ID Middleware ===
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    request_id_var.set(request_id)
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 # React dashboard dist is served via @app.get("/") route above
 
 # Rate limiter - configurable via env vars (requests per minute)
@@ -191,8 +188,8 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[_rate_limit])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_env: Optional[IncidentEnv] = None
-_tracker: Optional[EnhancedActionTracker] = None
+_env: IncidentEnv | None = None
+_tracker: EnhancedActionTracker | None = None
 
 
 def get_env() -> IncidentEnv:
@@ -247,6 +244,11 @@ if _metrics_enabled:
             "incidentops_active_websockets",
             "Active WebSocket connections",
         )
+        # Wire state module so route files can access metrics without circular imports
+        from app.routes import state
+        state._metrics_enabled = True
+        state.episodes_total = episodes_total
+        state.episode_score = episode_score
     else:  # pragma: no cover
         http_requests_total = http_request_duration = episodes_total = episode_score = active_websockets = None  # pragma: no cover
 
@@ -254,9 +256,9 @@ if _metrics_enabled:
 # === Request Models ===
 
 class ResetRequest(BaseModel):
-    seed: Optional[int] = None
-    fault_type: Optional[str] = None
-    difficulty: Optional[int] = None
+    seed: int | None = None
+    fault_type: str | None = None
+    difficulty: int | None = None
 
     @field_validator('fault_type')
     @classmethod
@@ -285,8 +287,8 @@ class GradeBreakdown(BaseModel):
 
 class GradeResponse(BaseModel):
     """Response model for POST /grader — documents all return fields in OpenAPI."""
-    trajectory_id: Optional[str] = Field(default=None, description="Optional trajectory identifier")
-    task: Optional[str] = Field(default=None, description="Task name used for grading (e.g. 'oom_crash')")
+    trajectory_id: str | None = Field(default=None, description="Optional trajectory identifier")
+    task: str | None = Field(default=None, description="Task name used for grading (e.g. 'oom_crash')")
     final_score: float = Field(description="Weighted final score (0.0-1.0)")
     grade: str = Field(description="SRE grade: expert, proficient, competent, learning, novice")
     explanation: str = Field(description="Human-readable scoring explanation with breakdown")
@@ -300,16 +302,16 @@ class GradeResponse(BaseModel):
 
 
 class GradeRequest(BaseModel):
-    trajectory_id: Optional[str] = None
-    task: Optional[str] = Field(
+    trajectory_id: str | None = None
+    task: str | None = Field(
         default=None,
         description="Task name (e.g. 'oom_crash', 'cascade_failure', 'ghost_corruption'). "
                     "Inferred as fault_type when scenario is absent."
     )
     actions: list[dict] = Field(default_factory=list, description="List of actions taken in the episode")
-    rewards: Optional[list[float]] = None
-    final_state: Optional[dict] = Field(default_factory=dict, description="Final environment state")
-    scenario: Optional[dict] = Field(
+    rewards: list[float] | None = None
+    final_state: dict | None = Field(default_factory=dict, description="Final environment state")
+    scenario: dict | None = Field(
         default=None,
         description="Scenario: fault_type, root_cause_service, affected_services, difficulty. "
                     "Optional when task is provided — inferred from task if absent."
@@ -326,7 +328,7 @@ class BaselineRequest(BaseModel):
     # Optional task to run instead of all 3
     # Maps to fault_type: "oom_crash" -> "oom", "cascade_failure" -> "cascade", "ghost_corruption" -> "ghost"
     # All other values are passed through as-is (e.g. "network_partition", "data_corruption")
-    task: Optional[str] = Field(
+    task: str | None = Field(
         default=None,
         description=(
             "Task ID to run a single baseline episode. "
@@ -336,30 +338,30 @@ class BaselineRequest(BaseModel):
         ),
     )
     # Groq (default active key)
-    groq_api_key: Optional[str] = None
-    groq_model: Optional[str] = "groq/llama-4-opus-17b"
+    groq_api_key: str | None = None
+    groq_model: str | None = "groq/llama-4-opus-17b"
     # HuggingFace
-    hf_token: Optional[str] = None
-    hf_model: Optional[str] = None
+    hf_token: str | None = None
+    hf_model: str | None = None
     # OpenAI
-    openai_api_key: Optional[str] = None
-    openai_model: Optional[str] = "gpt-4o"
+    openai_api_key: str | None = None
+    openai_model: str | None = "gpt-4o"
     # Google Gemini
-    gemini_api_key: Optional[str] = None
-    gemini_model: Optional[str] = "gemini-2.0-flash"
+    gemini_api_key: str | None = None
+    gemini_model: str | None = "gemini-2.0-flash"
     # AskSage
-    askme_api_key: Optional[str] = None
-    askme_model: Optional[str] = None
-    askme_base_url: Optional[str] = "https://api.asksage.ai/server"
+    askme_api_key: str | None = None
+    askme_model: str | None = None
+    askme_base_url: str | None = "https://api.asksage.ai/server"
     # Generic override
-    api_base_url: Optional[str] = None
-    model_name: Optional[str] = None
+    api_base_url: str | None = None
+    model_name: str | None = None
 
 
 class EnvConfigRequest(BaseModel):
     seed: int = 42
     max_steps: int = 50
-    fault_type: Optional[str] = None
+    fault_type: str | None = None
     difficulty: int = 3
     enable_memory: bool = True
     enable_noise: bool = True
@@ -368,24 +370,24 @@ class EnvConfigRequest(BaseModel):
 
 class OpenAICheckRequest(BaseModel):
     # Groq (default — active key for all users)
-    groq_api_key: Optional[str] = None
-    groq_model: Optional[str] = "groq/llama-4-opus-17b"
+    groq_api_key: str | None = None
+    groq_model: str | None = "groq/llama-4-opus-17b"
     # HuggingFace
-    hf_token: Optional[str] = None
-    hf_model: Optional[str] = None
+    hf_token: str | None = None
+    hf_model: str | None = None
     # OpenAI
-    openai_api_key: Optional[str] = None
-    openai_model: Optional[str] = "gpt-4o"
+    openai_api_key: str | None = None
+    openai_model: str | None = "gpt-4o"
     # Google Gemini (OpenAI-compatible endpoint)
-    gemini_api_key: Optional[str] = None
-    gemini_model: Optional[str] = "gemini-2.0-flash"
+    gemini_api_key: str | None = None
+    gemini_model: str | None = "gemini-2.0-flash"
     # AskSage (OpenAI-compatible)
-    askme_api_key: Optional[str] = None
-    askme_model: Optional[str] = None
-    askme_base_url: Optional[str] = "https://api.asksage.ai/server"
+    askme_api_key: str | None = None
+    askme_model: str | None = None
+    askme_base_url: str | None = "https://api.asksage.ai/server"
     # Generic override
-    api_base_url: Optional[str] = None
-    model_name: Optional[str] = None
+    api_base_url: str | None = None
+    model_name: str | None = None
 
 
 class CustomTaskRequest(BaseModel):
@@ -419,12 +421,13 @@ async def http_exception_handler(request: Request, exc: HTTPException):  # pragm
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):  # pragma: no cover
+    # SECURITY: Log the real exception server-side; return generic message to client
+    logger.exception("Unhandled exception: %s", exc)
     return JSONResponse(  # pragma: no cover
         status_code=500,  # pragma: no cover
         content={  # pragma: no cover
-            "error": str(exc),  # pragma: no cover
+            "error": "An internal error occurred. Please try again later.",  # pragma: no cover
             "type": "internal_error",  # pragma: no cover
-            "traceback": None,  # hide in production  # pragma: no cover
         }  # pragma: no cover
     )  # pragma: no cover
 
@@ -492,7 +495,7 @@ async def health():
     env = get_env()
     return {
         "status": "healthy",
-        "version": "15.0",
+        "version": "15.1",
         "components": {
             "environment": "ok",
             "grader": "ok",
@@ -507,6 +510,25 @@ async def health():
             "step": env.current_step,
         }
     }
+
+
+@app.get("/ready")
+async def ready():
+    """Kubernetes readiness probe — checks all dependencies are available."""
+    try:
+        # Check DB connection
+        from app.db import get_db
+        async for _db in get_db():
+            break
+        return {"status": "ready", "checks": {"database": "ok"}}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"not ready: {e}")
+
+
+@app.get("/live")
+async def live():
+    """Kubernetes liveness probe — checks if the process is alive."""
+    return {"status": "alive"}
 
 
 @app.post("/reset")
@@ -843,58 +865,43 @@ async def run_baseline(request: Request, body: BaselineRequest):
     try:
         if body.use_llm:
             from app.llm_baseline import run_llm_evaluation, check_openai_available
-            env_vars_set = []
             # Priority: Groq > Gemini > AskSage > OpenAI > HuggingFace > generic
-            # Determine base URL and API key from provider fields
+            # SECURITY: Pass API key directly to client — do NOT write to os.environ
             if body.gemini_api_key:
                 base_url = body.api_base_url or "https://generativelanguage.googleapis.com/v1beta/openai"
                 model = body.model_name or body.gemini_model or "gemini-2.0-flash"
                 api_key = body.gemini_api_key
-                provider = "gemini"
             elif body.askme_api_key:
                 base_url = body.askme_base_url or "https://api.asksage.ai/server"
                 model = body.model_name or body.askme_model or "gpt-4o"
                 api_key = body.askme_api_key
-                provider = "asksage"
             elif body.groq_api_key:
                 base_url = body.api_base_url or "https://api.groq.com/openai/v1"
                 model = body.model_name or body.groq_model or "groq/llama-4-opus-17b"
                 api_key = body.groq_api_key
-                provider = "groq"
             elif body.openai_api_key:
                 base_url = body.api_base_url or "https://api.openai.com/v1"
                 model = body.model_name or body.openai_model or "gpt-4o"
                 api_key = body.openai_api_key
-                provider = "openai"
             elif body.hf_token:
                 base_url = body.api_base_url or "https://router.huggingface.co/v1"
                 model = body.model_name or body.hf_model or "mistralai/Mistral-7B-Instruct-v0.3"
                 api_key = body.hf_token
-                provider = "huggingface"
             else:
-                base_url = body.api_base_url or "https://api.groq.com/openai/v1"
-                model = body.model_name or "groq/llama-4-opus-17b"
-                api_key = body.groq_api_key or ""
-                provider = "groq"
+                base_url = None
+                model = None
+                api_key = None
 
-            os.environ["API_BASE_URL"] = base_url
-            os.environ["MODEL_NAME"] = model
-            if api_key:
-                os.environ["GROQ_API_KEY"] = api_key  # reused as generic key env var
-                env_vars_set.append("GROQ_API_KEY")
-            env_vars_set.extend(["API_BASE_URL", "MODEL_NAME"])
-
-            try:
-                if check_openai_available():
-                    results = run_llm_evaluation(
-                        seed=body.seed, max_steps=body.max_steps, verbose=body.verbose
-                    )
-                    return {**results, "agent_type": "llm", "success": True}
-            except Exception:
-                pass
-            finally:
-                for var in env_vars_set:
-                    os.environ.pop(var, None)
+            if api_key and check_openai_available(api_key=api_key):
+                results = run_llm_evaluation(
+                    seed=body.seed,
+                    max_steps=body.max_steps,
+                    verbose=body.verbose,
+                    api_key=api_key,
+                    base_url=base_url,
+                    model=model,
+                )
+                return {**results, "agent_type": "llm", "success": True}
 
         from app.baseline import BaselineAgent, AgentConfig, run_baseline_episode, AgentStrategy
 
@@ -1067,70 +1074,6 @@ async def check_openai_key(request: OpenAICheckRequest):
         return {"valid": False, "message": "openai package not installed"}  # pragma: no cover
 
 
-# === Multi-Agent Endpoints ===
-
-class MultiAgentRequest(BaseModel):
-    seed: int = 42
-    max_steps: int = 20
-    enable_analyst: bool = True
-    confidence_threshold: float = 0.7
-
-
-@app.post("/agents/episode")
-async def run_multi_agent_episode(request: MultiAgentRequest):
-    """
-    Run a multi-agent coordinated episode.
-
-    The multi-agent system includes:
-    - Investigator: Gathers evidence by querying services
-    - Fixer: Applies remediations (activates when suspicion > threshold)
-    - Analyst: Provides pattern-based hints (optional)
-    """
-    from app.agents.coordinator import AgentCoordinator
-
-    env = make_env(seed=request.seed)
-    coordinator = AgentCoordinator(
-        enable_analyst=request.enable_analyst,
-        confidence_threshold=request.confidence_threshold,
-        max_steps=request.max_steps,
-    )
-
-    result = coordinator.run_episode(env, seed=request.seed)
-
-    return {
-        "episode_id": result.episode_id,
-        "total_reward": result.total_reward,
-        "final_score": result.final_score,
-        "grade": result.grade,
-        "steps": result.steps,
-        "duration_ms": result.duration_ms,
-        "agent_decisions": {
-            role: [
-                {
-                    "action": d.action_type,
-                    "service": d.target_service,
-                    "confidence": d.confidence,
-                    "reasoning": d.reasoning,
-                }
-                for d in decisions
-            ]
-            for role, decisions in result.agent_decisions.items()
-        },
-        "investigation_summary": result.investigation_summary,
-        "fix_summary": result.fix_summary,
-        "analysis_summary": result.analysis_summary,
-    }
-
-
-@app.get("/agents/stats")
-async def get_agent_stats():
-    """Get multi-agent system statistics and configuration"""
-    from app.agents.coordinator import AgentCoordinator
-
-    coordinator = AgentCoordinator()
-    return coordinator.get_coordinator_stats()
-
-
 # === Auth Endpoints ===
 
 @app.post("/auth/register", response_model=TokenResponse)
@@ -1168,7 +1111,7 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
 
 @app.get("/me", response_model=UserResponse)
 async def get_me(
-    current_user: Optional[UserResponse] = Depends(get_current_user),
+    current_user: UserResponse | None = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     if not current_user:
@@ -1177,73 +1120,6 @@ async def get_me(
 
 
 # === Episode Endpoints ===
-
-@app.get("/episodes", response_model=EpisodeListResponse)
-async def list_episodes(
-    fault_type: Optional[str] = Query(None),
-    agent_type: Optional[str] = Query(None),
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-):
-    episode_repo = EpisodeRepository(db)
-    offset = (page - 1) * per_page
-
-    if agent_type:
-        # Filter by agent type requires full scan for now
-        all_eps = await episode_repo.list_recent(limit=per_page, offset=offset)
-        all_eps = [e for e in all_eps if e.agent_type == agent_type]
-        total = len(all_eps)
-    elif fault_type:
-        all_eps = await episode_repo.list_by_fault(fault_type, limit=per_page, offset=offset)
-        total = len(all_eps)
-    else:
-        all_eps = await episode_repo.list_recent(limit=per_page, offset=offset)
-        total = await episode_repo.count()
-
-    return EpisodeListResponse(
-        total=total,
-        episodes=[EpisodeResponse.model_validate(e) for e in all_eps],
-        page=page,
-        per_page=per_page,
-    )
-
-
-@app.get("/episodes/{episode_id}", response_model=EpisodeDetail)
-async def get_episode(
-    episode_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    episode_repo = EpisodeRepository(db)
-    episode = await episode_repo.get_by_id(episode_id)
-    if not episode:
-        raise HTTPException(status_code=404, detail="Episode not found")
-    return EpisodeDetail.model_validate(episode)
-
-
-@app.get("/episodes/{episode_id}/replay")
-async def get_episode_replay(
-    episode_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    """Get full episode replay with all steps for visualization."""
-    episode_repo = EpisodeRepository(db)
-    episode = await episode_repo.get_by_id(episode_id)
-    if not episode:
-        raise HTTPException(status_code=404, detail="Episode not found")
-
-    return {
-        "episode_id": episode.id,
-        "trajectory": getattr(episode, "trajectory", []),
-        "final_state": getattr(episode, "final_state", {}),
-        "score": episode.final_score,
-        "fault_type": episode.fault_type,
-        "difficulty": episode.difficulty,
-        "agent_type": getattr(episode, "agent_type", "unknown"),
-        "steps": len(getattr(episode, "trajectory", [])),
-        "duration_minutes": getattr(episode, "duration_seconds", 0) / 60 if getattr(episode, "duration_seconds", 0) else None,
-    }
-
 
 @app.post("/inference")
 async def run_inference(request: Request):
@@ -1265,133 +1141,6 @@ async def run_inference(request: Request):
         "truncated": resp.truncated,
         "info": resp.info,
     }
-
-
-@app.post("/episodes", response_model=EpisodeResponse)
-async def save_episode(
-    data: EpisodeCreate,
-    current_user: Optional[UserResponse] = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Save a completed episode to the database"""
-    episode_repo = EpisodeRepository(db)
-    leaderboard_repo = LeaderboardRepository(db)
-
-    user_id = current_user.id if current_user else None
-
-    # Check for duplicate
-    existing = await episode_repo.get_by_episode_id(data.episode_id)
-    if existing:
-        raise HTTPException(status_code=409, detail="Episode already recorded")
-
-    episode = await episode_repo.create(data, user_id=user_id)
-
-    # Update leaderboard if user is authenticated
-    if user_id:
-        task_id = f"{data.fault_type}_d{data.difficulty}"
-        await leaderboard_repo.upsert_entry(
-            user_id=user_id,
-            task_id=task_id,
-            fault_type=data.fault_type,
-            grader_type="enhanced",
-            final_score=data.final_score,
-        )
-
-    # Prometheus metrics
-    if _metrics_enabled:
-        episodes_total.labels(fault_type=data.fault_type, agent_type=data.agent_type).inc()
-        episode_score.labels(fault_type=data.fault_type).set(data.final_score)
-
-    # Broadcast score
-    await ws_manager.broadcast({
-        "type": "score_recorded",
-        "episode_id": data.episode_id,
-        "fault_type": data.fault_type,
-        "final_score": data.final_score,
-        "grade": data.grade,
-        "username": current_user.username if current_user else "anonymous",
-    })
-
-    return EpisodeResponse.model_validate(episode)
-
-
-# === Leaderboard Endpoints ===
-
-@app.get("/leaderboard", response_model=LeaderboardResponse)
-async def get_leaderboard(
-    task_id: Optional[str] = Query(None, description="Task ID e.g. 'oom_2', 'cascade_3'"),
-    grader_type: str = Query("enhanced"),
-    limit: int = Query(50, ge=1, le=200),
-):
-    if task_id is None:
-        return LeaderboardResponse(grader_type=grader_type, entries=[], total=0)
-
-    @asynccontextmanager
-    async def _get_db_session():
-        async for db in get_db():
-            yield db
-
-    async with _get_db_session() as db:
-        leaderboard_repo = LeaderboardRepository(db)
-        entries = await leaderboard_repo.get_leaderboard(task_id, grader_type, limit=limit)
-        total = await leaderboard_repo.count_entries(task_id, grader_type)
-
-        ranked = []
-        for rank, (entry, user) in enumerate(entries, 1):
-            ranked.append(LeaderboardEntryResponse(
-                rank=rank,
-                user_id=entry.user_id,
-                username=user.username,
-                task_id=entry.task_id,
-                best_score=entry.best_score,
-                avg_score=entry.avg_score,
-                episode_count=entry.episode_count,
-                updated_at=entry.updated_at,
-            ))
-        return LeaderboardResponse(
-            task_id=task_id,
-            grader_type=grader_type,
-            entries=ranked,
-            total=total,
-        )
-
-
-@app.get("/leaderboard/tasks")
-async def list_leaderboard_tasks():
-    """List all tasks that have leaderboard entries"""
-    return {
-        "tasks": [
-            {"task_id": "oom_crash", "fault_type": "oom", "difficulty_level": 2, "name": "The OOM Crash"},
-            {"task_id": "cascade_failure", "fault_type": "cascade", "difficulty_level": 3, "name": "The Cascade"},
-            {"task_id": "ghost_corruption", "fault_type": "ghost", "difficulty_level": 5, "name": "The Ghost"},
-            {"task_id": "ddos_flood", "fault_type": "network", "difficulty_level": 3, "name": "The DDoS Flood"},
-            {"task_id": "memory_spiral", "fault_type": "oom", "difficulty_level": 4, "name": "The Memory Spiral"},
-        ]
-    }
-
-
-# === Stats Endpoint ===
-
-@app.get("/stats", response_model=StatsResponse)
-async def get_stats(db: AsyncSession = Depends(get_db)):
-    episode_repo = EpisodeRepository(db)
-    user_repo = UserRepository(db)
-
-    total_episodes = await episode_repo.count()
-    total_users = await user_repo.count()
-    avg_score = await episode_repo.avg_score()
-    scores_by_fault = await episode_repo.scores_by_fault()
-    top_agents = await episode_repo.top_agents(limit=5)
-    recent_episodes = await episode_repo.list_recent(limit=10)
-
-    return StatsResponse(
-        total_episodes=total_episodes,
-        total_users=total_users,
-        avg_score=round(avg_score, 3),
-        scores_by_fault={k: round(v, 3) for k, v in scores_by_fault.items()},
-        top_agents=top_agents,
-        recent_episodes=[EpisodeResponse.model_validate(e) for e in recent_episodes],
-    )
 
 
 # === WebSocket Endpoint ===
@@ -1418,16 +1167,6 @@ async def websocket_endpoint(websocket: WebSocket):  # pragma: no cover
         ws_manager.disconnect(websocket)  # pragma: no cover
         if _metrics_enabled:  # pragma: no cover
             active_websockets.set(len(ws_manager.active_connections))  # pragma: no cover
-
-
-# === Prometheus Metrics Endpoint ===
-
-@app.get("/metrics")
-async def metrics():
-    if not _metrics_enabled:
-        raise HTTPException(status_code=503, detail="Prometheus client not installed")
-    from starlette.responses import Response
-    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 def main():

@@ -4,7 +4,8 @@ IncidentOps - Analyst Agent
 Provides pattern matching and memory-based analysis to guide
 other agents toward likely root causes.
 """
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 from app.agents.base import BaseAgent, AgentObservation, AgentDecision, AgentRole
 from app.models import ActionType
 
@@ -23,7 +24,7 @@ class AnalystAgent(BaseAgent):
     role = AgentRole.ANALYST
 
     # Fault type indicators for quick pattern matching
-    FAULT_INDICATORS: Dict[str, List[str]] = {
+    FAULT_INDICATORS: dict[str, list[str]] = {
         "oom": ["OutOfMemory", "heap", "memory", "gc", "java.lang.OutOfMemoryError"],
         "cascade": ["timeout", "connection", "pool", "exhausted", "503", "multiple"],
         "ghost": ["silent", "gradual", "ctr", "metric", "no error", "deploy"],
@@ -34,11 +35,11 @@ class AnalystAgent(BaseAgent):
 
     def __init__(self) -> None:
         self._seed: int = 42
-        self._suggested_fault_type: Optional[str] = None
+        self._suggested_fault_type: str | None = None
         self._confidence: float = 0.0
-        self._memory_hints: List[str] = []
-        self._fault_probabilities: Dict[str, float] = {}
-        self._pattern_matches: List[Dict[str, Any]] = []
+        self._memory_hints: list[str] = []
+        self._fault_probabilities: dict[str, float] = {}
+        self._pattern_matches: list[dict[str, Any]] = []
 
     def reset(self, seed: int) -> None:
         """Reset agent state for a new episode"""
@@ -62,8 +63,8 @@ class AnalystAgent(BaseAgent):
         self._analyze_patterns(observation)
 
         # Try to load memory and match patterns
-        hints: List[str] = []
-        memory_suggestions: List[Dict[str, Any]] = []
+        hints: list[str] = []
+        memory_suggestions: list[dict[str, Any]] = []
 
         try:
             from app.memory import IncidentMemory
@@ -149,9 +150,9 @@ class AnalystAgent(BaseAgent):
             "confidence": self._confidence,
         })
 
-    def _extract_keywords(self, observation: AgentObservation) -> List[str]:
+    def _extract_keywords(self, observation: AgentObservation) -> list[str]:
         """Extract keywords from observation for memory search"""
-        keywords: List[str] = []
+        keywords: list[str] = []
 
         # From action history
         for action in observation.action_history:
@@ -204,7 +205,7 @@ class AnalystAgent(BaseAgent):
                     0.0
                 )
 
-    def get_analysis_summary(self) -> Dict[str, Any]:
+    def get_analysis_summary(self) -> dict[str, Any]:
         """Get summary of analysis"""
         return {
             "suggested_fault_type": self._suggested_fault_type,
@@ -214,7 +215,7 @@ class AnalystAgent(BaseAgent):
             "pattern_matches": self._pattern_matches,
         }
 
-    def get_current_hypothesis(self) -> Optional[Dict[str, Any]]:
+    def get_current_hypothesis(self) -> dict[str, Any] | None:
         """Get the current fault hypothesis with recommended action"""
         if not self._suggested_fault_type:
             return None

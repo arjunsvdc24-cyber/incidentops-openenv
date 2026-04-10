@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING, Any
 """
 IncidentOps - Agent Coordinator
 
@@ -8,8 +9,10 @@ Orchestrates multiple agents working on the same incident:
 """
 import time
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
 
 from app.agents.base import BaseAgent, AgentObservation, AgentDecision
 from app.agents.investigator import InvestigatorAgent
@@ -27,12 +30,12 @@ class MultiAgentEpisodeResult:
     final_score: float
     grade: str
     steps: int
-    agent_decisions: Dict[str, List[AgentDecision]]
+    agent_decisions: dict[str, list[AgentDecision]]
     episode_id: str
     duration_ms: int
-    investigation_summary: Dict[str, Any] = field(default_factory=dict)
-    fix_summary: Dict[str, Any] = field(default_factory=dict)
-    analysis_summary: Dict[str, Any] = field(default_factory=dict)
+    investigation_summary: dict[str, Any] = field(default_factory=dict)
+    fix_summary: dict[str, Any] = field(default_factory=dict)
+    analysis_summary: dict[str, Any] = field(default_factory=dict)
 
 
 class AgentCoordinator:
@@ -103,7 +106,7 @@ class AgentCoordinator:
         ).hexdigest()[:16]
 
         # Track all decisions per agent
-        all_decisions: Dict[str, List[AgentDecision]] = {
+        all_decisions: dict[str, list[AgentDecision]] = {
             "investigator": [],
             "fixer": [],
             "analyst": [],
@@ -111,7 +114,7 @@ class AgentCoordinator:
 
         total_reward = 0.0
         observations = []
-        analyst_hint: Optional[str] = None
+        analyst_hint: str | None = None
 
         for step in range(self.max_steps):
             # Build AgentObservation
@@ -138,7 +141,7 @@ class AgentCoordinator:
             all_decisions["investigator"].append(inv_decision)
 
             # Check if Fixer should take over based on suspicion threshold
-            fixer_decision: Optional[AgentDecision] = None
+            fixer_decision: AgentDecision | None = None
             current_suspicion = self.investigator.get_suspicion()
 
             if current_suspicion >= self.confidence_threshold:
@@ -175,8 +178,9 @@ class AgentCoordinator:
                     break
 
             except Exception as e:  # pragma: no cover
-                # If step fails, continue with next step
-                continue  # pragma: no cover
+                # SECURITY: Log the exception instead of silently swallowing it
+                logger.error("Agent step failed: %s", e, exc_info=True)
+                raise RuntimeError(f"Agent step failed: {e}") from e
 
         # Calculate duration
         duration_ms = int((time.time() - start_time) * 1000)
@@ -232,9 +236,9 @@ class AgentCoordinator:
     def run_batch(
         self,
         env_factory,
-        seeds: List[int],
+        seeds: list[int],
         **kwargs
-    ) -> List[MultiAgentEpisodeResult]:
+    ) -> list[MultiAgentEpisodeResult]:
         """
         Run multiple episodes with different seeds.
 
@@ -253,7 +257,7 @@ class AgentCoordinator:
             results.append(result)
         return results
 
-    def get_coordinator_stats(self) -> Dict[str, Any]:
+    def get_coordinator_stats(self) -> dict[str, Any]:
         """Get overall coordinator statistics"""
         return {
             "agents": {

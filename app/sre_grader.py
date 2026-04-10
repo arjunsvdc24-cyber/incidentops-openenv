@@ -21,8 +21,8 @@ Returns:
 Deterministic scoring.
 """
 from dataclasses import dataclass, field
-from typing import Optional, List, Set, Dict
 from enum import Enum
+from typing import Dict, List, Set
 
 
 class SREGrade(str, Enum):
@@ -69,7 +69,7 @@ class SREEvaluation:
     improvement_suggestions: List[str] = field(default_factory=list)
     
     # Additional fields for main.py compatibility
-    trajectory_id: Optional[str] = None
+    trajectory_id: str | None = None
     total_reward: float = 0.0
 
 

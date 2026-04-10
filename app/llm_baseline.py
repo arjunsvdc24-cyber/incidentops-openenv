@@ -1,3 +1,4 @@
+from typing import Any
 """
 IncidentOps - LLM Baseline Agent v13.0
 
@@ -15,7 +16,6 @@ Features:
 Runs evaluation for easy, medium, hard difficulties.
 """
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
 import os
 import json
 import random
@@ -46,7 +46,7 @@ class EvaluationResult:
     score: float
     steps: int
     success: bool
-    actions: List[Dict]
+    actions: list[dict]
 
 
 SYSTEM_PROMPT = """You are an expert SRE (Site Reliability Engineer) agent responding to production incidents.
@@ -106,36 +106,48 @@ class LLMBaselineAgent:
     Deterministic with temperature=0 and seed.
     """
     
-    def __init__(self, config: Optional[LLMAgentConfig] = None):
+    def __init__(
+        self,
+        config: LLMAgentConfig | None = None,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+    ):
         self.config = config or LLMAgentConfig()
         self.rng = random.Random(self.config.seed)
 
-        # Initialize OpenAI client — Groq (default), Gemini, AskSage, HuggingFace, OpenAI
-        self.client = None
+        # Initialize OpenAI client — prefer explicitly passed values, then fall back to env
+        # SECURITY: API key is passed directly rather than read from environment
         self.api_key = (
-            os.environ.get("GROQ_API_KEY")
+            api_key
+            or os.environ.get("GROQ_API_KEY")
             or os.environ.get("HF_TOKEN")
             or os.environ.get("OPENAI_API_KEY")
             or os.environ.get("GEMINI_API_KEY")
             or os.environ.get("ASKME_API_KEY")
             or ""
         )
-        self.base_url = os.environ.get(
+        self.base_url = base_url or os.environ.get(
             "API_BASE_URL", "https://api.groq.com/openai/v1"
         )
-        self.provider = os.environ.get("LLM_PROVIDER", "groq")
+        self.provider = os.environ.get("LLM_PROVIDER", "openai")
+        if model:
+            self.config.model = model
 
         if HAS_OPENAI and self.api_key:
             try:
                 self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
             except Exception:
                 self.client = None
-        
+        else:
+            self.client = None
+
         # State tracking
-        self.action_history: List[Dict] = []
+        self.action_history: list[dict] = []
         self.current_step = 0
     
-    def reset(self, seed: Optional[int] = None) -> None:
+    def reset(self, seed: int | None = None) -> None:
         """Reset agent for new episode"""
         if seed is not None:
             self.config.seed = seed
@@ -144,7 +156,7 @@ class LLMBaselineAgent:
         self.action_history = []
         self.current_step = 0
     
-    def act(self, observation: Dict) -> Dict:
+    def act(self, observation: dict) -> dict:
         """
         Choose action based on observation using LLM.
         
@@ -166,7 +178,7 @@ class LLMBaselineAgent:
         
         return action
     
-    def _get_llm_action(self, observation: Dict) -> Dict:
+    def _get_llm_action(self, observation: dict) -> dict:
         """Get action from LLM with robust JSON parsing"""
         for attempt in range(3):
             try:
@@ -213,7 +225,7 @@ class LLMBaselineAgent:
 
         return self._get_fallback_action(observation)
     
-    def _get_fallback_action(self, observation: Dict) -> Dict:
+    def _get_fallback_action(self, observation: dict) -> dict:
         """Fallback action when LLM unavailable — ghost-aware rule-based agent"""
         alerts = observation.get("alerts", [])
         services = observation.get("services", {})
@@ -277,7 +289,7 @@ class LLMBaselineAgent:
             return {"action_type": "query_service", "target_service": self.rng.choice(all_services), "parameters": {}}
         return {"action_type": "query_deployments", "target_service": None, "parameters": {}}
     
-    def _format_observation(self, observation: Dict) -> str:
+    def _format_observation(self, observation: dict) -> str:
         """Format observation for LLM prompt"""
         parts = []
         
@@ -320,16 +332,23 @@ class LLMBaselineAgent:
 def run_llm_evaluation(
     seed: int = 42,
     max_steps: int = 20,
-    verbose: bool = False
-) -> Dict:
+    verbose: bool = False,
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+) -> dict:
     """
     Run LLM agent evaluation across difficulties.
-    
+
     Args:
         seed: Random seed
         max_steps: Maximum steps per episode
         verbose: Print progress
-        
+        api_key: OpenAI/Groq API key (passed directly, not via env)
+        base_url: API base URL (passed directly, not via env)
+        model: Model name (passed directly, not via env)
+
     Returns:
         Dict with easy, medium, hard, total scores
     """
@@ -350,14 +369,14 @@ def run_llm_evaluation(
             print(f"\n{'='*50}")
             print(f"Running {name} evaluation (difficulty={difficulty})")
             print(f"{'='*50}")
-        
+
         # Create environment
         env = make_env(seed=seed, difficulty=difficulty, fault_type=fault)
         obs = env.reset(seed=seed)
-        
-        # Create agent
+
+        # Create agent with explicit credentials (no env vars needed)
         config = LLMAgentConfig(seed=seed, max_steps=max_steps)
-        agent = LLMBaselineAgent(config)
+        agent = LLMBaselineAgent(config, api_key=api_key, base_url=base_url, model=model)
         agent.reset(seed=seed)
         
         total_reward = 0.0
@@ -428,8 +447,10 @@ def run_llm_evaluation(
     }
 
 
-def check_openai_available() -> bool:
+def check_openai_available(api_key: str | None = None) -> bool:
     """Check if LLM API is available (Groq default, then Gemini, AskSage, HF_TOKEN, OPENAI_API_KEY)"""
+    if api_key:
+        return HAS_OPENAI
     return HAS_OPENAI and (
         os.environ.get("GROQ_API_KEY") is not None
         or os.environ.get("HF_TOKEN") is not None
@@ -440,10 +461,20 @@ def check_openai_available() -> bool:
 
 
 # Compatibility with existing baseline module
-def run_baseline_episode(env, agent=None, seed=42, max_steps=20, verbose=True):
+def run_baseline_episode(
+    env,
+    agent=None,
+    seed=42,
+    max_steps=20,
+    verbose=True,
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+):
     """Run baseline episode (compatibility wrapper)"""
     config = LLMAgentConfig(seed=seed, max_steps=max_steps)
-    llm_agent = LLMBaselineAgent(config)
+    llm_agent = LLMBaselineAgent(config, api_key=api_key, base_url=base_url, model=model)
     llm_agent.reset(seed=seed)
     
     obs = env.reset(seed=seed)

@@ -4,7 +4,7 @@ IncidentOps - Stable-Baselines3 Integration
 Provides Gymnasium wrapper and RL trainer for use with
 stable-baselines3 algorithms (PPO, A2C, etc.).
 """
-from typing import Tuple, Dict, Any, Optional, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict
 import numpy as np
 
 from app.models import ActionType, VALID_SERVICES
@@ -79,7 +79,7 @@ class GymnasiumWrapper(gym.Env):
         self._services = sorted(VALID_SERVICES)
         self._service_to_idx = {s: i for i, s in enumerate(self._services)}
 
-    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict]:
+    def reset(self, seed: int | None = None) -> tuple[np.ndarray, Dict]:
         """Reset the environment"""
         if seed is not None:
             obs = self.env.reset(seed=seed)
@@ -88,7 +88,7 @@ class GymnasiumWrapper(gym.Env):
 
         return self._obs_to_array(obs), {}
 
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict]:
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, Dict]:
         """Execute one step"""
         # Decode action
         action_type_idx = action // self._num_services
@@ -173,11 +173,11 @@ class GymnasiumWrapper(gym.Env):
         """Clean up environment"""
         self.env.close()
 
-    def render(self, mode: str = "human") -> Optional[str]:
+    def render(self, mode: str = "human") -> str | None:
         """Render the environment"""
         return self.env.render(mode=mode)
 
-    def get_action_mapping(self, action: int) -> Tuple[str, str]:
+    def get_action_mapping(self, action: int) -> tuple[str, str]:
         """Get the (action_type, service) for a discrete action"""
         action_type_idx = action // self._num_services
         service_idx = action % self._num_services
@@ -236,7 +236,7 @@ class RLTrainer:
         self.normalize_observations = normalize_observations
         self.n_envs = n_envs
         self.tensorboard_log = None
-        self.model: Optional[Any] = None
+        self.model: Any | None = None
         self._vec_env = None
 
     def make_env(self, seed: int = 42) -> Callable:
@@ -255,7 +255,7 @@ class RLTrainer:
             return GymnasiumWrapper(base_env)
         return _init
 
-    def train(self, env_fn: Optional[Callable] = None) -> Any:  # pragma: no cover
+    def train(self, env_fn: Callable | None = None) -> Any:  # pragma: no cover
         """Train the model (requires actual RL training - too slow for unit tests)."""  # pragma: no cover
         if env_fn is None:  # pragma: no cover
             env_fn = self.make_env(0)  # pragma: no cover
@@ -297,7 +297,7 @@ class RLTrainer:
         self,
         obs: np.ndarray,
         deterministic: bool = True
-    ) -> Tuple[int, float]:  # pragma: no cover
+    ) -> tuple[int, float]:  # pragma: no cover
         """Predict action (requires trained model)."""  # pragma: no cover
         if self.model is None:  # pragma: no cover
             raise ValueError("Model not trained or loaded")  # pragma: no cover
@@ -309,7 +309,7 @@ class RLTrainer:
         env_fn: Callable,
         n_episodes: int = 10,
         deterministic: bool = True,
-    ) -> Dict[str, float]:  # pragma: no cover
+    ) -> dict[str, float]:  # pragma: no cover
         """Evaluate model (requires trained model - too slow for unit tests)."""  # pragma: no cover
         if self.model is None:  # pragma: no cover
             raise ValueError("Model not trained or loaded")  # pragma: no cover
@@ -339,6 +339,6 @@ class RLTrainer:
             "success_rate": np.mean(successes),  # pragma: no cover
         }
 
-    def get_model(self) -> Optional[Any]:
+    def get_model(self) -> Any | None:
         """Get the trained model"""
         return self.model
