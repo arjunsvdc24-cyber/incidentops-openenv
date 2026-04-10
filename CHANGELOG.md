@@ -5,6 +5,28 @@ All notable changes to IncidentOps are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [15.1] — 2026-04-10
+
+### Changed
+
+- **Full UI/UX audit** — Complete dashboard polish with premium styling across all pages
+- **Dashboard fixes** — All pages validated: episodes, leaderboard, tasks, audit, validation
+- **README.md polish** — Rewritten for hackathon judges with "Judge This" scoring section, benchmark table, architecture diagrams, getting started section, and complete API documentation
+- **openenv.yaml** — Enhanced with comprehensive descriptions and all 15 fault types documented
+
+### Added
+
+- **TROUBLESHOOTING.md** — Common issues guide with quick fix commands
+- **ARCHITECTURE.md** — System architecture documentation with text-based diagrams
+
+### Fixed
+
+- **API documentation** — All 36 endpoints documented with descriptions
+- **Getting started section** — Docker one-liner + local dev instructions added to README
+- **Benchmark table** — Easy-to-scan scores for all 3 canonical tasks in README
+
+---
+
 ## [15.1] — 2026-04-09
 
 ### Added

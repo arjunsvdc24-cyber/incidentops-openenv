@@ -21,43 +21,64 @@ class RewardConfig:
     """Configuration for reward weights"""
     # === Continuous Progress Rewards ===
     # System health improvement: scaled by error reduction
-    health_improvement_weight: float = 3.0
-    
+    health_improvement_weight: float = 2.5
+
     # Latency improvement: direct scale (ms)
     latency_improvement_weight: float = 1.0
-    
-    # Correct investigation: querying relevant service
-    correct_investigation_reward: float = 0.05
-    
-    # Root cause identification
+
+    # Correct investigation: querying relevant service (granular by type)
+    investigation_service_reward: float = 0.03
+    investigation_metrics_reward: float = 0.05
+    investigation_logs_reward: float = 0.04
+    investigation_dependencies_reward: float = 0.04
+    investigation_deployments_reward: float = 0.05  # Valuable for ghost/deployment faults
+
+    # Root cause identification (tiered)
     root_cause_reward: float = 0.3
-    
-    # Correct fix applied
-    correct_fix_reward: float = 0.3
-    
+    root_cause_attempted_reward: float = 0.1  # Investigated correct service
+
+    # Correct fix applied (tiered)
+    correct_fix_reward: float = 0.4
+    partial_fix_reward: float = 0.2  # Right service, wrong action type
+    wrong_service_attempt: float = 0.05  # Made an attempt (for encouragement)
+
     # Minimal actions bonus (efficiency)
-    minimal_actions_bonus: float = 0.1
-    
+    minimal_actions_bonus: float = 0.15
+
+    # Time bonus: reward for fast resolution
+    time_bonus_per_step_saved: float = 0.03  # Bonus per step under SLO budget
+
+    # Investigation thoroughness bonus
+    thorough_investigation_bonus: float = 0.1  # For querying both metrics and logs
+
     # Memory usage bonus
-    memory_usage_bonus: float = 0.1
-    
+    memory_usage_bonus: float = 0.05
+
     # === Penalties ===
     # Unnecessary restart (service not actually faulty)
     unnecessary_restart_penalty: float = -0.1
-    
+
     # Redundant query (asking same thing again)
     redundant_query_penalty: float = -0.05
-    
+
     # Random/irrelevant action
     random_action_penalty: float = -0.02
-    
+
+    # Wrong service fix penalty
+    wrong_service_fix_penalty: float = -0.08
+
     # === Thresholds ===
+    # SLO budget by difficulty (steps)
+    slo_budget_by_difficulty: dict = field(default_factory=lambda: {
+        1: 5, 2: 8, 3: 12, 4: 18, 5: 25
+    })
+
     # Steps considered "minimal" for bonus
     minimal_steps_threshold: int = 15
-    
+
     # Error rate considered "healthy"
     healthy_error_rate: float = 0.01
-    
+
     # Latency considered "acceptable" (ms)
     acceptable_latency_ms: float = 100.0
 
@@ -75,35 +96,43 @@ class RewardCalculator:
     
     def __init__(self, config: RewardConfig | None = None):
         self.config = config or RewardConfig()
-        
+
         # Track previous state for improvement calculations
         self.prev_total_error_rate: float = 0.0
         self.prev_avg_latency: float = 0.0
-        
+
         # Track action history for redundant detection
         self.action_history: list[dict] = []
         self.query_count: dict[str, int] = {}
-        
+
         # Track investigation progress
         self.queried_services: set[str] = set()
+        self.queried_metrics_on_root: bool = False
+        self.queried_logs_on_root: bool = False
         self.identified_root_cause: bool = False
         self.applied_correct_fix: bool = False
-        
+
+        # Track time/efficiency
+        self.current_step: int = 0
+        self.difficulty: int = 3
+
         # Fault information (set by environment)
         self.fault_root_cause: str | None = None
         self.fault_affected_services: set[str] = set()
         self.fault_type: str | None = None
-    
+
     def set_fault_info(
         self,
         root_cause: str,
         affected_services: set[str],
-        fault_type: str | None = None
+        fault_type: str | None = None,
+        difficulty: int = 3
     ) -> None:
         """Set fault information for reward calculation"""
         self.fault_root_cause = root_cause
         self.fault_affected_services = affected_services
         self.fault_type = fault_type
+        self.difficulty = difficulty
 
     def reset(self) -> None:
         """Reset state for new episode"""
@@ -112,8 +141,12 @@ class RewardCalculator:
         self.action_history = []
         self.query_count = {}
         self.queried_services = set()
+        self.queried_metrics_on_root = False
+        self.queried_logs_on_root = False
         self.identified_root_cause = False
         self.applied_correct_fix = False
+        self.current_step = 0
+        self.difficulty = 3
         self.fault_root_cause = None
         self.fault_affected_services = set()
         self.fault_type = None
@@ -127,65 +160,109 @@ class RewardCalculator:
         used_memory: bool = False,
     ) -> RewardBreakdown:
         """
-        Calculate reward for a single step.
-        
+        Calculate reward for a single step with granular signals.
+
         Args:
             action_type: The action taken
             target_service: Target service for the action
             current_services: Current service states
             is_terminated: Whether episode is ending
             used_memory: Whether memory was consulted
-            
+
         Returns:
             RewardBreakdown with detailed reward components
         """
         breakdown = RewardBreakdown()
-        
+
         # 1. Calculate system health improvement
         current_total_error = self._calculate_total_error_rate(current_services)
         health_delta = self.prev_total_error_rate - current_total_error
         breakdown.health_improvement = health_delta * self.config.health_improvement_weight
         self.prev_total_error_rate = current_total_error
-        
+
         # 2. Calculate latency improvement
         current_avg_latency = self._calculate_avg_latency(current_services)
         latency_delta = self.prev_avg_latency - current_avg_latency
         breakdown.latency_improvement = latency_delta * self.config.latency_improvement_weight / 100.0
         self.prev_avg_latency = current_avg_latency
-        
-        # 3. Correct investigation reward
+
+        # 3. Granular investigation rewards
         if target_service and self._is_relevant_service(target_service):
-            if target_service not in self.queried_services:
-                breakdown.correct_investigation = self.config.correct_investigation_reward
+            query_key = f"{action_type}:{target_service}"
+            if query_key not in self.query_count or self.query_count[query_key] == 0:
+                # First time querying this service with this action
+                if action_type == ActionType.QUERY_METRICS.value:
+                    breakdown.correct_investigation = self.config.investigation_metrics_reward
+                    if target_service == self.fault_root_cause:
+                        self.queried_metrics_on_root = True
+                elif action_type == ActionType.QUERY_LOGS.value:
+                    breakdown.correct_investigation = self.config.investigation_logs_reward
+                    if target_service == self.fault_root_cause:
+                        self.queried_logs_on_root = True
+                elif action_type == ActionType.QUERY_SERVICE.value:
+                    breakdown.correct_investigation = self.config.investigation_service_reward
+                elif action_type == ActionType.QUERY_DEPENDENCIES.value:
+                    breakdown.correct_investigation = self.config.investigation_dependencies_reward
+                elif action_type == ActionType.QUERY_DEPLOYMENTS.value:
+                    breakdown.correct_investigation = self.config.investigation_deployments_reward
+
                 self.queried_services.add(target_service)
-        
-        # 4. Root cause identification reward
+
+        # 4. Root cause identification reward (tiered)
         if action_type == ActionType.IDENTIFY_ROOT_CAUSE.value:
             if target_service == self.fault_root_cause and not self.identified_root_cause:
                 breakdown.root_cause_identified = self.config.root_cause_reward
                 self.identified_root_cause = True
-        
-        # 5. Correct fix reward
-        if action_type in (ActionType.RESTART_SERVICE.value, ActionType.SCALE_SERVICE.value, ActionType.ROLLBACK_DEPLOYMENT.value, ActionType.APPLY_FIX.value):
+            elif target_service != self.fault_root_cause:
+                # Attempted identification but wrong — small negative
+                breakdown.root_cause_identified = -0.05
+        elif (target_service == self.fault_root_cause and
+              action_type.startswith("query_") and
+              not self.identified_root_cause):
+            # Partial credit: investigated the right service
+            breakdown.root_cause_identified = self.config.root_cause_attempted_reward
+
+        # 5. Fix reward (tiered)
+        if action_type in (ActionType.RESTART_SERVICE.value, ActionType.SCALE_SERVICE.value,
+                           ActionType.ROLLBACK_DEPLOYMENT.value, ActionType.APPLY_FIX.value):
             if self._is_correct_fix(target_service, action_type):
                 breakdown.correct_fix = self.config.correct_fix_reward
                 self.applied_correct_fix = True
-        
-        # 6. Memory usage bonus
-        if used_memory:  # pragma: no cover
-            breakdown.memory_usage_bonus = self.config.memory_usage_bonus  # pragma: no cover
+            elif target_service == self.fault_root_cause:
+                # Right service, wrong action type
+                breakdown.correct_fix = self.config.partial_fix_reward
+            else:
+                # Wrong service attempt
+                breakdown.correct_fix = self.config.wrong_service_attempt
 
-        # 7. Apply penalties
+        # 6. Investigation thoroughness bonus
+        if (self.queried_metrics_on_root and self.queried_logs_on_root and
+                not hasattr(self, '_thorough_bonus_applied')):
+            breakdown.correct_investigation += self.config.thorough_investigation_bonus
+            self._thorough_bonus_applied = True  # type: ignore[attr-defined]
+
+        # 7. Memory usage bonus
+        if used_memory:
+            breakdown.memory_usage_bonus = self.config.memory_usage_bonus
+
+        # 8. Apply penalties
         self._apply_penalties(breakdown, action_type, target_service)
 
-        # 8. Minimal actions bonus at termination
-        if is_terminated:  # pragma: no cover
-            steps = len(self.action_history)  # pragma: no cover
-            if steps <= self.config.minimal_steps_threshold:  # pragma: no cover
-                # Proportional bonus for efficiency
-                efficiency_ratio = 1.0 - (steps / self.config.minimal_steps_threshold)  # pragma: no cover
-                breakdown.minimal_actions = self.config.minimal_actions_bonus * efficiency_ratio  # pragma: no cover
-        
+        # 9. Time bonus for fast resolution at termination
+        if is_terminated and self.applied_correct_fix:
+            slo_budget = self.config.slo_budget_by_difficulty.get(self.difficulty, 12)
+            steps_taken = len(self.action_history)
+            if steps_taken < slo_budget:
+                steps_saved = slo_budget - steps_taken
+                breakdown.correct_fix += steps_saved * self.config.time_bonus_per_step_saved
+
+        # 10. Minimal actions bonus at termination
+        if is_terminated:
+            steps = len(self.action_history)
+            if steps <= self.config.minimal_steps_threshold:
+                efficiency_ratio = 1.0 - (steps / self.config.minimal_steps_threshold)
+                breakdown.minimal_actions = self.config.minimal_actions_bonus * efficiency_ratio
+
         # Calculate total
         breakdown.total = (
             breakdown.health_improvement +
@@ -199,10 +276,14 @@ class RewardCalculator:
             breakdown.redundant_query_penalty +
             breakdown.random_action_penalty
         )
-        
+
+        # Clamp total to reasonable range
+        breakdown.total = max(-1.0, min(2.0, breakdown.total))
+
         # Record action in history
         self._record_action(action_type, target_service)
-        
+        self.current_step += 1
+
         return breakdown
     
     def _calculate_total_error_rate(self, services: dict) -> float:
@@ -247,24 +328,37 @@ class RewardCalculator:
         target_service: str | None
     ) -> None:
         """Apply penalties for suboptimal actions"""
-        
-        # 1. Unnecessary restart penalty
+
+        # 1. Unnecessary restart penalty (restarting a healthy service)
         if action_type == ActionType.RESTART_SERVICE.value:
             if target_service and not self._is_relevant_service(target_service):
                 breakdown.unnecessary_restart_penalty = self.config.unnecessary_restart_penalty
-        
+
         # 2. Redundant query penalty
         if action_type in (
             ActionType.QUERY_SERVICE.value,
             ActionType.QUERY_METRICS.value,
             ActionType.QUERY_LOGS.value,
+            ActionType.QUERY_DEPENDENCIES.value,
+            ActionType.QUERY_DEPLOYMENTS.value,
         ):
             query_key = f"{action_type}:{target_service}"
             self.query_count[query_key] = self.query_count.get(query_key, 0) + 1
             if self.query_count[query_key] > 1:
                 breakdown.redundant_query_penalty = self.config.redundant_query_penalty
-        
-        # 3. Random action penalty (action that doesn't help)
+
+        # 3. Wrong service fix penalty
+        if action_type in (ActionType.RESTART_SERVICE.value, ActionType.SCALE_SERVICE.value,
+                           ActionType.ROLLBACK_DEPLOYMENT.value, ActionType.APPLY_FIX.value):
+            if target_service and target_service != self.fault_root_cause:
+                # Penalize fixing wrong service (unless we already got partial credit)
+                if breakdown.correct_fix <= 0.05:  # pragma: no cover
+                    breakdown.random_action_penalty = max(
+                        breakdown.random_action_penalty,
+                        self.config.wrong_service_fix_penalty
+                    )
+
+        # 4. Random action penalty (escalation without investigation)
         if self._is_random_action(action_type, target_service):
             breakdown.random_action_penalty = self.config.random_action_penalty
     

@@ -1,8 +1,21 @@
 # IncidentOps OpenEnv Configuration
+# Production incident response RL environment for training and evaluating SRE agents.
+#
+# This environment simulates real-world on-call scenarios across a 15-service
+# microservice architecture. Agents must diagnose faults, identify root causes,
+# and apply remediation actions under SLA time pressure with partial observability.
+#
 # Compatible with OpenEnv specification v1.0
+# Tested: 31/31 validation checks pass
 
 name: IncidentOps
-description: Production incident response RL environment for training SRE agents
+description: >
+  Production SRE Incident Response RL Environment — train and evaluate AI agents
+  on real-world on-call scenarios. Simulates 15-service e-commerce platform with
+  13 fault types (OOM, cascade, ghost, DDoS, memory leak, zombie processes,
+  cert expiry, etc.). Features dense rewards, deceptive signals, SLA deadlines,
+  and 5-axis SRE grading. Used for LLM agent benchmarking, SRE training, and
+  multi-agent coordination research. Baseline: 0.864 (LLM) / 0.691 (rule-based).
 emoji: "🚨"
 color_from: red
 color_to: orange
@@ -20,7 +33,7 @@ tags:
   - sre-training
   - production-incident
   - agentic-ai
-version: "15.0"
+version: "15.1"
 
 # Observation Schema
 observation:

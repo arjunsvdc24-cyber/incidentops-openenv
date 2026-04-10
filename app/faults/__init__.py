@@ -44,6 +44,7 @@ from app.faults.cert_expiry import CertExpiryFault
 from app.faults.memory_leak import MemoryLeakFault
 from app.faults.zombie_process import ZombieProcessFault
 from app.faults.thundering_herd import ThunderingHerdFault
+from app.faults.noisy_neighbor import NoisyNeighborFault
 
 # Register all faults with the registry
 # This happens at import time to ensure all faults are available
@@ -57,6 +58,7 @@ FaultRegistry.register(CertExpiryFault)
 FaultRegistry.register(MemoryLeakFault)
 FaultRegistry.register(ZombieProcessFault)
 FaultRegistry.register(ThunderingHerdFault)
+FaultRegistry.register(NoisyNeighborFault)
 
 # Register ZOMBIE as alias for zombie_process
 FaultRegistry.register(ZombieProcessFault)  # registers under "zombie_process"
@@ -82,4 +84,5 @@ __all__ = [
     "MemoryLeakFault",
     "ZombieProcessFault",
     "ThunderingHerdFault",
+    "NoisyNeighborFault",
 ]

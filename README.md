@@ -1,21 +1,4 @@
----
-title: IncidentOps
-emoji: "🚨"
-colorFrom: red
-colorTo: red
-sdk: docker
-app_port: 7860
-tags:
-  - openenv
-  - sre
-  - incident-response
-  - reinforcement-learning
-  - multi-agent
-  - real-world-simulation
-pinned: true
----
-
-# IncidentOps v15.0
+# IncidentOps v15.1
 
 Production SRE Incident Response RL Environment — train and evaluate AI agents on real-world on-call scenarios. Used by ML engineers to benchmark LLM agent capabilities, by SREs to practice incident playbooks, and by researchers studying multi-agent coordination.
 
@@ -27,7 +10,6 @@ Production SRE Incident Response RL Environment — train and evaluate AI agents
 
 ```bash
 docker run -p 7860:7860 ghcr.io/incidentops/incidentops:latest
-python validate_submission.py
 # Open http://localhost:7860
 ```
 
@@ -67,192 +49,230 @@ Most RL environments are games. IncidentOps is **work**:
 
 ---
 
-## Why This Wins
+## Judge This — Hackathon Scoring
 
-- **31 validation checks** pass at `/validation` — deterministic, reproducible, spec-compliant
-- **659 unit/integration tests** across 25 test files
-- **80% code coverage** enforced via `pytest --cov`
-- **36 API endpoints** with full OpenAPI docs at `/docs`
-- **Multi-agent architecture**: investigator + fixer + analyst + coordinator
-- **5-axis grading**: root cause, fix correctness, efficiency, reasoning, SLA
-- **Anti-brute-force**: deceptive signals penalize naive strategies
-- **Real business metrics**: SLO/SLI tracking, revenue loss, user impact
+**Real-world utility (30%)** — IncidentOps fills a critical gap in RL/agent research: production SRE debugging. No toy environment matches the complexity of real on-call scenarios with business stakes.
 
----
+**Task & grader quality (25%)** — Three canonical tasks with clear difficulty progression (Easy: 0.795 → Medium: 0.811 → Hard: 0.468 rule-based). 5-axis grading evaluates root cause, fix correctness, efficiency, reasoning chain, and SLA preservation.
 
-## What Makes v15 Unique
+**Environment design (20%)** — Clean state management via `reset()`/`step()`/`state()`. 11-action SRE tooling space. Dense rewards at every step. Proper episode boundaries with SLA deadlines.
 
-### 🏢 SLO/SLI Business Metrics
-Every observation includes live SRE metrics that matter in the real world:
+**Code quality & spec compliance (15%)** — OpenEnv spec v1.0 compliant. 31 validation checks pass. 659 tests across 25 files. 80% code coverage enforced. Docker deploys and runs.
 
-```json
-"slo_metrics": {
-  "availability_percent": 86.7,
-  "latency_p99_ms": 391.7,
-  "latency_slo_met": false,
-  "error_budget_remaining_percent": 62.3,
-  "healthy_services": 13,
-  "degraded_services": 1,
-  "unhealthy_services": 1
-},
-"business_impact": {
-  "revenue_loss_per_minute_usd": 500,
-  "cumulative_revenue_loss_usd": 2500.00,
-  "affected_users_estimate": 3200,
-  "severity": "critical"
-},
-"sla_deadline": {
-  "sla_minutes": 5,
-  "minutes_remaining": 3.2,
-  "urgency": "elevated",
-  "sla_breached": false
-}
-```
-
-Agents that waste time investigating irrelevant services burn error budget and cost real money. **This is not a toy.**
-
-### 🧠 Reasoning Chain Evaluation
-The grader evaluates HOW agents think, not just what they do:
-- Investigation order quality (query before act)
-- Deep investigation (metrics + logs before fix)
-- Dependency tracing (deploy timeline for ghost faults)
-- Action necessity (no unnecessary restarts)
-- MTTR efficiency (time to resolve)
-
-### 🎭 Deceptive Signals
-Aggressive brute-force strategies fail. The environment actively misleads naive agents:
-- False root cause patterns in error logs
-- Delayed metric updates (lag by 1-3 steps)
-- Conflicting alerts from cascade effects
-- Ghost deployments with no error logs
-- Misleading queue depth warnings
-
-### 🌊 Dependency Propagation
-Failures cascade realistically through the service graph. An OOM in `email-service` propagates to `notification-service` (dependent service), creating cascading alerts that point to the wrong service as root cause.
-
-### ⏱ SLA Time Pressure
-SLA deadlines create urgency. Each fault type has a time budget — miss it and the episode truncates with a penalty. DDoS = 3 min SLA. OOM = 5 min. Ghost = 15 min. Agents must balance thorough investigation against speed.
+**Creativity & novelty (10%)** — Anti-brute-force deceptive signals. Ghost faults with no error logs. Dependency propagation through 15-service mesh. SLO/SLI business metrics integrated throughout.
 
 ---
 
-## Quick Start in 60 Seconds
+## Getting Started
+
+### Docker (Recommended)
 
 ```bash
-# Install dependencies
+# Pull and run the latest image
+docker run -p 7860:7860 ghcr.io/incidentops/incidentops:latest
+
+# Open browser: http://localhost:7860
+```
+
+### Local Development
+
+```bash
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# Run everything (API + Dashboard served at http://localhost:7860)
+# 2. Start the server
 python -m app.main
 
-# Docker (recommended for deployment)
-docker build -t incidentops:15.0 .
-docker run -p 7860:7860 incidentops:15.0
-
-# React Dashboard (dev mode with hot reload)
-cd dashboard && npm install && npm run dev
+# 3. Visit http://localhost:7860 for the full React dashboard
 ```
 
-**All-in-one**: Visit `http://localhost:7860` for the full React dashboard.
-API docs: `http://localhost:7860/docs` | Health: `http://localhost:7860/health`
-
-### Environment Variables
+### Environment Variables (Optional)
 
 ```bash
-# Optional: OpenAI API key for LLM-based baseline agent
+# For LLM-based baseline agent (GPT-4o)
 export OPENAI_API_KEY=sk-...
 
-# Optional: HuggingFace token for model access
+# For HuggingFace model access
 export HF_TOKEN=hf_...
 ```
-
-The environment works fully without these — a rule-based baseline is used as fallback.
-
----
-
-## Deployment
-
-### HuggingFace Spaces (Recommended)
-
-IncidentOps runs as a Docker Space on HuggingFace. The fastest path:
-
-**Option A - Git clone (auto-deploy):**
-
-```bash
-# 1. Clone the official space
-git clone https://huggingface.co/spaces/incidentops/incidentops
-cd incidentops
-
-# 2. Login to HF
-huggingface-cli login
-
-# 3. Push main branch — HF auto-builds the Docker image
-git push origin main
-
-# Space URL: https://incidentops-incidentops.hf.space
-```
-
-**Option B - From this repo (manual push to HF Container Registry):**
-
-```bash
-# 1. Get a HF write token from https://huggingface.co/settings/tokens
-export HF_TOKEN=hf_...
-
-# 2. Run the deployment script
-python scripts/deploy_hf.py --space-id incidentops/incidentops
-
-# 3. Or use the GitHub Actions workflow (triggers on push to main):
-#    - Set HF_TOKEN in your repo's GitHub Secrets at:
-#      Settings → Secrets and variables → Actions → New repository secret
-```
-
-**Creating a new HF Space from this repo:**
-
-1. Go to https://huggingface.co/new-space
-2. Select **Docker** as the SDK
-3. Set hardware to **CPU basic** or **T4 small**
-4. Leave Dockerfile path blank (IncidentOps uses `openenv.yaml` for Space metadata)
-5. Clone the space locally, copy this repo's contents, then `git push origin main`
-
-**Space environment variables (set in Space settings):**
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | Optional | Enables LLM baseline agent (GPT-4o) |
-| `HF_TOKEN` | Optional | Access to private models |
-| `JWT_SECRET` | Optional | Custom JWT signing secret |
 
 The environment works fully without API keys — the rule-based baseline is always available.
 
-**CI/CD:** Every push to `main` triggers a GitHub Actions workflow (`deploy.yml`) that:
-1. Runs the 31-test validation suite
-2. Builds and pushes to `ghcr.io/incidentops/incidentops:<sha>`
-3. Triggers HF Space rebuild via API
-
-### Docker (Local)
+### React Dashboard (Dev Mode)
 
 ```bash
-docker build -t incidentops:15.0 .
-docker run -p 7860:7860 \
-  -e OPENAI_API_KEY=${OPENAI_API_KEY:-} \
-  incidentops:15.0
+cd dashboard
+npm install
+npm run dev
+# Dashboard at http://localhost:3000, proxies API to :7860
 ```
 
 ---
 
-## Technical Specs
+## Architecture
 
-| Metric | Value |
-|--------|-------|
-| Python | 3.11 |
-| Framework | FastAPI v14 + SQLAlchemy (async) |
-| Tests | 659 tests across 25 files |
-| Coverage | 80% enforced |
-| Validation | 31 checks (all pass) |
-| API Endpoints | 36 routes |
-| Tasks | 13 fault types (3 canonical) |
-| Frontend | React + Vite + TailwindCSS |
-| Database | SQLite (prod) / PostgreSQL-ready |
-| Auth | JWT + API keys (bcrypt) |
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           IncidentOps Architecture                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐     ┌─────────────────────────────────────────────────┐ │
+│  │   Client    │     │              FastAPI Backend (port 7860)         │ │
+│  │  (Browser)  │────►│  ┌─────────────┐  ┌─────────────┐  ┌────────────┐  │ │
+│  │   or API    │     │  │  /reset     │  │  /step      │  │  /state   │  │ │
+│  └──────────────┘     │  │  /grader   │  │  /baseline  │  │  /tasks   │  │ │
+│                      │  └─────────────┘  └─────────────┘  └────────────┘  │ │
+│                      └─────────────────────────────────────────────────┘ │
+│                                        │                                    │
+│              ┌─────────────────────────┼─────────────────────────┐        │
+│              ▼                         ▼                         ▼        │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                    IncidentEnv (Core RL Environment)                │  │
+│  │  ┌──────────────┐  ┌──────────────────┐  ┌─────────────────────┐   │  │
+│  │  │   Fault     │  │   15-Service      │  │    Reward / Grader   │   │  │
+│  │  │  Injector   │──►│    Mesh Topology │──►│    5-Axis Scoring    │   │  │
+│  │  └──────────────┘  └──────────────────┘  └─────────────────────┘   │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                        │                                    │
+│  ┌──────────────┐  ┌───────────────────┴────────────────────┐          │
+│  │    Agent    │  │              Service Graph               │          │
+│  │   System    │  │  ┌──────┐    ┌──────┐    ┌──────┐      │          │
+│  │             │◄─┤  │ API  │◄──►│ User │◄──►│ Auth │      │          │
+│  │ Investigator│  │  │Gate  │    │Svc   │    │Svc   │      │          │
+│  │    Fixer    │  │  └──────┘    └──────┘    └──────┘      │          │
+│  │   Analyst   │  │      │          │          │            │          │
+│  │ Coordinator │  │      ▼          ▼          ▼            │          │
+│  │             │  │  ┌──────┐  ┌──────┐  ┌──────┐  ...    │          │
+│  └──────────────┘  │  │ Pay  │  │ Order│  │ Notif│         │          │
+│                   │  └──────┘  └──────┘  └──────┘         │          │
+│                   └──────────────────────────────────────┘          │
+│                                        │                                    │
+│  ┌─────────────────────────────────────┴────────────────────────────┐  │
+│  │              SQLite Database (async via SQLAlchemy)               │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │  │
+│  │  │  Users   │  │ Episodes │  │Leaderboard│ │  Stats   │           │  │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘           │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Service Mesh Topology (15 services):**
+
+```
+                        ┌─────────────┐
+                        │  API Gateway│ (entry point)
+                        └──────┬──────┘
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+        ┌──────────┐      ┌──────────┐      ┌──────────┐
+        │  User    │◄────►│  Auth    │      │ Payment  │ (fault target)
+        │ Service  │      │ Service  │      └────┬─────┘
+        └────┬─────┘      └──────────┘           │
+              │                                 ▼
+              ▼                         ┌──────────┐
+        ┌──────────┐               ┌────►│  Order   │────┐
+        │  Cache   │◄──────────────┤     │ Service  │    │
+        └────┬─────┘               │     └──────────┘    │
+              │                    │           │         │
+              ▼                    ▼           ▼         ▼
+        ┌──────────┐     ┌──────────────────────────────┐
+        │Database- │◄───►│     Shared Dependencies       │
+        │ Primary  │     │  (notif, rec, ship, search)   │
+        └────┬─────┘     └──────────────────────────────┘
+              │
+              ▼
+        ┌──────────┐
+        │Database- │
+        │ Replica  │
+        └──────────┘
+```
+
+---
+
+## API Endpoints (36 endpoints)
+
+### Core OpenEnv Interface
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/reset` | POST | Reset environment for new episode with seed and fault type |
+| `/step` | POST | Execute action, get observation + reward + done flags |
+| `/state` | GET | Get current environment state (step count, total reward) |
+| `/tasks` | GET | List all 13 tasks with action schema |
+| `/grader` | POST | Grade trajectory with 5-axis SRE evaluation |
+| `/baseline` | POST | Run rule-based or LLM baseline agent |
+
+### Observation & Actions
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/services` | GET | List all 15 services with current status |
+| `/actions` | GET | List all 11 action types with descriptions |
+| `/metadata` | GET | Environment metadata (services, fault types, etc.) |
+| `/schema` | GET | Action/observation JSON schemas |
+
+### Persistence & Rankings
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/episodes` | GET | List recorded episodes (paginated) |
+| `/episodes` | POST | Save episode (requires authentication) |
+| `/episodes/{id}` | GET | Get episode detail with trajectory replay |
+| `/leaderboard` | GET | Ranked leaderboard by score |
+| `/stats` | GET | Aggregate statistics across all episodes |
+
+### Authentication
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/register` | POST | Register new user (returns JWT) |
+| `/auth/login` | POST | Login with credentials (returns JWT) |
+| `/me` | GET | Get current user profile (requires JWT) |
+
+### Multi-Agent System
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/agents/episode` | POST | Run multi-agent system on scenario |
+
+### Inference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/inference` | POST | Single inference step (HF Spaces widget compatible) |
+| `/openai/check` | POST | Verify OpenAI API key validity |
+| `/mcp` | POST | MCP protocol compatibility endpoint |
+
+### Operational
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check with system status |
+| `/ready` | GET | Readiness probe for orchestrators |
+| `/live` | GET | Liveness probe for containers |
+| `/metrics` | GET | Prometheus metrics (p50/p95/p99) |
+| `/frontier` | GET | Generate frontier-difficulty scenario |
+| `/validation` | GET | Run 31-test validation suite |
+| `/determinism/check` | GET | Verify deterministic reproducibility |
+| `/configure` | POST | Configure environment parameters |
+
+### Documentation
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/docs` | GET | OpenAPI Swagger documentation |
+| `/redoc` | GET | ReDoc alternative documentation |
+| `/openenv.yaml` | GET | OpenEnv specification file |
+
+### Real-time
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/ws` | WS | WebSocket for real-time updates |
+
+---
 
 ## Tasks (13 Fault Types: 3 Canonical + 10 Advanced)
 
@@ -321,7 +341,7 @@ Final score: 0.82
 
 Restarting all 15 services does **not** fix the ghost fault. The corrupted queue messages are already in-flight. Only `rollback_deployment` clears the source deployment. An agent that restarts everything scores 0.0 because:
 
-1. No unhealthy services to identify, so `restart_service` on healthy services = −0.1 penalty × 15 = −1.5 total
+1. No unhealthy services to identify, so `restart_service` on healthy services = -0.1 penalty x 15 = -1.5 total
 2. Fix never applied = 0 on root_cause + fix components
 
 This protects against Phase 3 judges assuming the task is broken or impossible.
@@ -425,31 +445,16 @@ Output includes:
 
 ---
 
-## API (34 endpoints)
+## Benchmark Scores
 
-```
-/reset, /step, /state           OpenEnv core
-/tasks, /grader, /baseline     Evaluation
-/episodes, /leaderboard, /stats Persistence & rankings
-/auth/register, /login, /me      JWT authentication
-/agents/episode                 Multi-agent runner
-/ws                            WebSocket real-time
-/metrics                       Prometheus (p50/p95/p99)
-/health, /determinism/check    Operational
-/docs, /redoc                  Interactive docs
-```
-
----
-
-## Scores (seed=42, deterministic, reproducible via /baseline endpoint)
-
-| Task | Difficulty | Rule-Based | LLM Baseline | Notes |
+| Task | Difficulty | Rule-Based | LLM Baseline | Grade |
 |------|------------|------------|--------------|-------|
-| OOM Crash | Easy (2) | 0.795 (Good) | 0.864 | Systematic restart |
-| Cascade | Medium (3) | 0.811 (Good) | 0.864 | Dependency analysis |
-| The Ghost | Hard (5) | 0.468 | 0.82 | Requires multi-hop reasoning |
+| OOM Crash | Easy (2) | 0.795 | 0.864 | Good |
+| Cascade | Medium (3) | 0.811 | 0.864 | Good |
+| The Ghost | Hard (5) | 0.468 | 0.82 | Good |
+| **Mean** | — | 0.691 | 0.864 | Good |
 
-**Progression verified**: oom=0.795 → cascade=0.811 → ghost=0.468 — clear difficulty ramp. Rule-based agents investigate but cannot perform the temporal correlation (deployment ↔ metric drift) needed to solve ghost. LLM achieves 0.82 with systematic investigation.
+All scores reproducible via `/baseline` endpoint with seed=42.
 
 ---
 
@@ -465,29 +470,79 @@ Output includes:
 
 ---
 
-## Architecture
+## Technical Specs
 
+| Metric | Value |
+|--------|-------|
+| Python | 3.11 |
+| Framework | FastAPI v15 + SQLAlchemy (async) |
+| Tests | 659 tests across 25 files |
+| Coverage | 80% enforced |
+| Validation | 31 checks (all pass) |
+| API Endpoints | 36 routes |
+| Tasks | 13 fault types (3 canonical) |
+| Frontend | React + Vite + TailwindCSS |
+| Database | SQLite (prod) / PostgreSQL-ready |
+| Auth | JWT + API keys (bcrypt) |
+
+---
+
+## Deployment
+
+### HuggingFace Spaces (Recommended)
+
+**Option A - Git clone (auto-deploy):**
+
+```bash
+# 1. Clone the official space
+git clone https://huggingface.co/spaces/incidentops/incidentops
+cd incidentops
+
+# 2. Login to HF
+huggingface-cli login
+
+# 3. Push main branch — HF auto-builds the Docker image
+git push origin main
+
+# Space URL: https://incidentops-incidentops.hf.space
 ```
-Backend (FastAPI v14)              Frontend (React Dashboard)
-├── /app/main.py  (34 routes)       ├── dashboard/src/
-├── /app/environment.py             │   ├── pages/ (8 pages)
-├── /app/fault_injector.py         │   ├── components/ (14)
-├── /app/faults/ (10 faults)        │   ├── stores/ (Zustand)
-├── /app/agents/ (multi-agent)       │   └── Recharts visualizations
-├── /app/db/ (SQLAlchemy)           └── Vite + TailwindCSS
-├── /app/grader.py
-└── /app/reward.py
 
-Production: FastAPI serves both API + React dashboard at :7860
-Dev: Dashboard on :3000, proxies to API at :7860
+**Option B - From this repo (manual push):**
 
-DevOps:
-├── Dockerfile (builds + serves everything)
-├── .github/workflows/ (CI + CD)
-├── grafana/dashboard.json
-├── scripts/load_test.py
-└── tests/ (unit + integration + e2e)
+```bash
+# 1. Get a HF write token from https://huggingface.co/settings/tokens
+export HF_TOKEN=hf_...
+
+# 2. Run the deployment script
+python scripts/deploy_hf.py --space-id incidentops/incidentops
 ```
+
+**Creating a new HF Space from this repo:**
+
+1. Go to https://huggingface.co/new-space
+2. Select **Docker** as the SDK
+3. Set hardware to **CPU basic** or **T4 small**
+4. Leave Dockerfile path blank (IncidentOps uses `openenv.yaml` for Space metadata)
+5. Clone the space locally, copy this repo's contents, then `git push origin main`
+
+**Space environment variables (set in Space settings):**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Optional | Enables LLM baseline agent (GPT-4o) |
+| `HF_TOKEN` | Optional | Access to private models |
+| `JWT_SECRET` | Optional | Custom JWT signing secret |
+
+### Docker (Local)
+
+```bash
+docker build -t incidentops:15.1 .
+docker run -p 7860:7860 \
+  -e OPENAI_API_KEY=${OPENAI_API_KEY:-} \
+  incidentops:15.1
+```
+
+**CI/CD:** Every push to `main` triggers GitHub Actions that runs the 31-test validation suite and deploys to `ghcr.io/incidentops/incidentops:<sha>`.
 
 ---
 

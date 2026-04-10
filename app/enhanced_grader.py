@@ -1,18 +1,32 @@
 from typing import Any
 """
-IncidentOps - Enhanced SRE Grader v13.0
+IncidentOps - Enhanced SRE Grader v14.0
 
 Scoring breakdown:
-- 0.25 → root cause identification
-- 0.25 → fix correctness
-- 0.20 → efficiency
-- 0.15 → minimal disruption
-- 0.15 → reasoning quality
+- 0.20 → root cause identification
+- 0.20 → fix correctness
+- 0.15 → SLO adherence (task-specific time budget)
+- 0.15 → efficiency (step count vs optimal)
+- 0.10 → minimal disruption
+- 0.10 → reasoning quality
+- 0.10 → investigation thoroughness
 
 Reasoning quality evaluates:
 - Did agent follow logical path?
 - Did it avoid misleading signals?
 - Did it use evidence correctly?
+- Did it investigate thoroughly before acting?
+
+Task-specific rubric overrides:
+- beginner (difficulty 1-2): more forgiving, larger partial credit
+- intermediate (difficulty 3): standard rubric
+- advanced (difficulty 4-5): stricter, rewards only optimal actions
+
+Edge cases handled:
+- Empty trajectory: score = 0.0
+- Partial fix: generous partial credit
+- Wrong service: partial credit for methodology
+- No investigation: score capped
 
 Returns:
 {
@@ -51,22 +65,27 @@ class ScoringBreakdown:
     # Component scores (0.0-1.0)
     root_cause_score: float = 0.0
     fix_score: float = 0.0
+    slo_score: float = 0.0
     efficiency_score: float = 0.0
     disruption_score: float = 0.0
     reasoning_score: float = 0.0
-    
+    investigation_score: float = 0.0
+
     # Weighted contributions
     root_cause_weighted: float = 0.0
     fix_weighted: float = 0.0
+    slo_weighted: float = 0.0
     efficiency_weighted: float = 0.0
     disruption_weighted: float = 0.0
     reasoning_weighted: float = 0.0
-    
+    investigation_weighted: float = 0.0
+
     # Final
     raw_total: float = 0.0
     penalties: float = 0.0
     final_score: float = 0.0
     grade: SREGrade = SREGrade.NOVICE
+    grade_level: str = "intermediate"  # beginner/intermediate/advanced
 
 
 @dataclass
@@ -111,25 +130,41 @@ class EnhancedEvaluation:
 
 class EnhancedSREGrader:
     """
-    Enhanced SRE-style grader with reasoning quality.
-    
+    Enhanced SRE-style grader with reasoning quality and task-specific rubrics.
+
     Weight distribution:
-    - Root cause: 25%
-    - Fix: 25%
-    - Efficiency: 20%
-    - Disruption: 15%
-    - Reasoning: 15%
+    - Root cause: 20%
+    - Fix: 20%
+    - SLO: 15%
+    - Efficiency: 15%
+    - Disruption: 10%
+    - Reasoning: 10%
+    - Investigation: 10%
+
+    Task-specific rubrics (grade_level):
+    - beginner (diff 1-2): forgiving, max partial credit 0.8
+    - intermediate (diff 3): standard rubric
+    - advanced (diff 4-5): strict, rewards only optimal paths
+
+    SLO tiers by difficulty:
+    - Difficulty 1: 5 steps
+    - Difficulty 2: 8 steps
+    - Difficulty 3: 12 steps
+    - Difficulty 4: 18 steps
+    - Difficulty 5: 25 steps
     """
-    
-    # Weights
+
+    # Weights (updated v14)
     WEIGHTS = {
-        "root_cause": 0.25,
-        "fix": 0.25,
-        "efficiency": 0.20,
-        "disruption": 0.15,
-        "reasoning": 0.15,
+        "root_cause": 0.20,
+        "fix": 0.20,
+        "slo": 0.15,
+        "efficiency": 0.15,
+        "disruption": 0.10,
+        "reasoning": 0.10,
+        "investigation": 0.10,
     }
-    
+
     # Base optimal steps by fault type (difficulty 3 baseline)
     # Difficulty 1 → multiply by 0.7, Difficulty 5 → multiply by 1.5
     BASE_OPTIMAL_STEPS = {
@@ -138,6 +173,42 @@ class EnhancedSREGrader:
         "ghost": 6,
         "deployment": 4,
         "network": 3,
+        # Extended faults
+        "cert_expiry": 3,
+        "config_drift": 5,
+        "data_corruption": 6,
+        "network_partition": 4,
+        "slow_downstream": 4,
+        "thundering_herd": 5,
+        "zombie_process": 4,
+        "version_mismatch": 4,
+        "memory_leak": 5,
+        "ddos": 3,
+    }
+
+    # SLO time budgets by difficulty (steps = proxy for minutes)
+    SLO_TIERS = {
+        1: 5,
+        2: 8,
+        3: 12,
+        4: 18,
+        5: 25,
+    }
+
+    # Grade level by difficulty
+    GRADE_LEVELS = {
+        1: "beginner",
+        2: "beginner",
+        3: "intermediate",
+        4: "advanced",
+        5: "advanced",
+    }
+
+    # Partial credit multipliers by grade level (applied to max achievable)
+    PARTIAL_CREDIT = {
+        "beginner": 0.85,
+        "intermediate": 0.75,
+        "advanced": 0.60,
     }
 
     def _get_optimal_steps(self, fault_type: str, difficulty: int) -> int:
@@ -173,77 +244,121 @@ class EnhancedSREGrader:
         reasoning_data: dict | None = None
     ) -> EnhancedEvaluation:
         """
-        Grade trajectory with reasoning quality.
-        
+        Grade trajectory with enhanced reasoning and task-specific rubrics.
+
         Args:
             trajectory: Dict with actions, rewards, final_state
             scenario: Dict with fault_type, root_cause, affected_services
             reasoning_data: Optional reasoning tracking data
-            
+
         Returns:
             EnhancedEvaluation with complete analysis
         """
         actions = trajectory.get("actions", [])
         final_state = trajectory.get("final_state", {})
-        
+
         fault_type = scenario.get("fault_type", "unknown")
         root_cause = scenario.get("root_cause_service", "")
         affected = set(scenario.get("affected_services", []))
-        
+        difficulty = scenario.get("difficulty", 3)
+        grade_level = self.GRADE_LEVELS.get(difficulty, "intermediate")
+
         # Initialize components
         breakdown = ScoringBreakdown()
-        
-        # 1. Root cause score (25%)
-        breakdown.root_cause_score = self._score_root_cause(actions, root_cause)
+        breakdown.grade_level = grade_level
+
+        # ── Edge case: empty trajectory ──────────────────────────────────────
+        if not actions:
+            breakdown.grade = SREGrade.NOVICE
+            explanation = (
+                "No actions taken — trajectory is empty.\n"
+                "Score: 0.0\n"
+                "Hint: Start by querying service metrics or logs to observe symptoms."
+            )
+            return EnhancedEvaluation(
+                breakdown=breakdown,
+                reasoning_analysis=ReasoningAnalysis(
+                    pattern=ReasoningPattern.RANDOM,
+                    followed_logical_path=False,
+                    avoided_misleading_signals=False,
+                    used_evidence_correctly=False,
+                    hypothesis_refinement=False,
+                ),
+                explanation=explanation,
+                strengths=[],
+                weaknesses=["No actions taken"],
+                suggestions=["Start by querying service metrics or logs"],
+                total_steps=0,
+            )
+
+        # 1. Root cause score (20%)
+        breakdown.root_cause_score = self._score_root_cause(actions, root_cause, grade_level)
         breakdown.root_cause_weighted = breakdown.root_cause_score * self.WEIGHTS["root_cause"]
-        
-        # 2. Fix score (25%)
-        breakdown.fix_score = self._score_fix(actions, final_state, root_cause, fault_type)
+
+        # 2. Fix score (20%)
+        breakdown.fix_score = self._score_fix(actions, final_state, root_cause, fault_type, grade_level)
         breakdown.fix_weighted = breakdown.fix_score * self.WEIGHTS["fix"]
-        
-        # 3. Efficiency score (20%) — difficulty-aware
-        difficulty = scenario.get("difficulty", 3)
-        breakdown.efficiency_score = self._score_efficiency(len(actions), fault_type, difficulty)
+
+        # 3. SLO score (15%) — task-specific time budget
+        breakdown.slo_score = self._score_slo(len(actions), difficulty, grade_level)
+        breakdown.slo_weighted = breakdown.slo_score * self.WEIGHTS["slo"]
+
+        # 4. Efficiency score (15%) — difficulty-aware
+        breakdown.efficiency_score = self._score_efficiency(len(actions), fault_type, difficulty, grade_level)
         breakdown.efficiency_weighted = breakdown.efficiency_score * self.WEIGHTS["efficiency"]
-        
-        # 4. Disruption score (15%)
+
+        # 5. Disruption score (10%)
         disruption_result = self._score_disruption(actions, root_cause, affected)
         breakdown.disruption_score = disruption_result["score"]
         breakdown.disruption_weighted = breakdown.disruption_score * self.WEIGHTS["disruption"]
-        
-        # 5. Reasoning score (15%)
+
+        # 6. Reasoning score (10%)
         reasoning_analysis = self._analyze_reasoning(
             actions, fault_type, root_cause, reasoning_data
         )
         breakdown.reasoning_score = self._calculate_reasoning_score(reasoning_analysis)
         breakdown.reasoning_weighted = breakdown.reasoning_score * self.WEIGHTS["reasoning"]
-        
+
+        # 7. Investigation thoroughness score (10%)
+        breakdown.investigation_score = self._score_investigation_thoroughness(
+            actions, fault_type, root_cause, grade_level
+        )
+        breakdown.investigation_weighted = breakdown.investigation_score * self.WEIGHTS["investigation"]
+
         # Calculate totals
         breakdown.raw_total = (
             breakdown.root_cause_weighted +
             breakdown.fix_weighted +
+            breakdown.slo_weighted +
             breakdown.efficiency_weighted +
             breakdown.disruption_weighted +
-            breakdown.reasoning_weighted
+            breakdown.reasoning_weighted +
+            breakdown.investigation_weighted
         )
-        
+
+        # Apply task-specific partial credit cap
+        partial_cap = self.PARTIAL_CREDIT.get(grade_level, 0.75)
+        if breakdown.raw_total > partial_cap and breakdown.fix_score < 0.8:
+            # Cap at partial credit unless full fix was achieved
+            breakdown.raw_total = min(breakdown.raw_total, partial_cap + (1.0 - partial_cap) * breakdown.fix_score)
+
         # Apply penalties
-        penalties = self._calculate_penalties(actions, root_cause, affected)
+        penalties = self._calculate_penalties(actions, root_cause, affected, grade_level)
         breakdown.penalties = penalties
         breakdown.final_score = max(0.0, min(1.0, breakdown.raw_total - penalties))
-        
+
         # Assign grade
         breakdown.grade = self._assign_grade(breakdown.final_score)
-        
+
         # Generate explanation
         explanation = self._generate_explanation(
-            breakdown, reasoning_analysis, fault_type, root_cause
+            breakdown, reasoning_analysis, fault_type, root_cause, difficulty
         )
-        
+
         strengths = self._identify_strengths(breakdown, reasoning_analysis)
         weaknesses = self._identify_weaknesses(breakdown, reasoning_analysis)
-        suggestions = self._generate_suggestions(breakdown, reasoning_analysis, fault_type)
-        
+        suggestions = self._generate_suggestions(breakdown, reasoning_analysis, fault_type, difficulty)
+
         return EnhancedEvaluation(
             breakdown=breakdown,
             reasoning_analysis=reasoning_analysis,
@@ -254,10 +369,18 @@ class EnhancedSREGrader:
             total_steps=len(actions),
         )
     
-    def _score_root_cause(self, actions: list[dict], root_cause: str) -> float:
-        """Score root cause identification with tiered partial credit."""
+    def _score_root_cause(self, actions: list[dict], root_cause: str, grade_level: str = "intermediate") -> float:
+        """Score root cause identification with tiered partial credit + grade-level forgiveness."""
         if not actions or not root_cause:
             return 0.0
+
+        # Partial credit multipliers by grade level
+        credit_multipliers = {
+            "beginner": {"tier2": 0.7, "tier3": 0.4, "tier4": 0.2},
+            "intermediate": {"tier2": 0.5, "tier3": 0.25, "tier4": 0.1},
+            "advanced": {"tier2": 0.4, "tier3": 0.15, "tier4": 0.05},
+        }
+        multipliers = credit_multipliers.get(grade_level, credit_multipliers["intermediate"])
 
         # Tier 1: explicit correct identification
         for action in actions:
@@ -272,7 +395,7 @@ class EnhancedSREGrader:
             target = action.get("target_service", "")
             action_type = action.get("action_type", "")
             if target == root_cause and action_type.startswith("query_"):
-                return 0.5
+                return multipliers["tier2"]
 
         # Tier 3: queried the dependency graph (systematic approach, still partial)
         queried_deps = any(
@@ -280,18 +403,16 @@ class EnhancedSREGrader:
             for a in actions
         )
         if queried_deps:
-            # Check if any investigation action targeted a related service
             investigation = [
                 a for a in actions
                 if a.get("action_type", "").startswith("query_")
             ]
             if investigation:
-                # Some investigation done — credit for methodology
-                return 0.25
+                return multipliers["tier3"]
 
         # Tier 4: any investigation at all (effort, not result)
         if any(a.get("action_type", "").startswith("query_") for a in actions):
-            return 0.1
+            return multipliers["tier4"]
 
         return 0.0
     
@@ -300,27 +421,42 @@ class EnhancedSREGrader:
         actions: list[dict],
         final_state: dict,
         root_cause: str,
-        fault_type: str
+        fault_type: str,
+        grade_level: str = "intermediate"
     ) -> float:
-        """Score fix correctness with generous partial credit for partial progress."""
+        """Score fix correctness with task-specific partial credit."""
         fix_actions = [
             a for a in actions
             if a.get("action_type") in ("restart_service", "rollback_deployment", "apply_fix", "scale_service")
         ]
+
+        # Expected action type per fault type
+        expected_actions = {
+            "ghost": "rollback_deployment",
+            "deployment": "rollback_deployment",
+            "oom": "restart_service",
+            "network": "scale_service",
+            "cascade": "scale_service",
+            "cert_expiry": "restart_service",
+            "config_drift": "apply_fix",
+            "data_corruption": "rollback_deployment",
+            "network_partition": "scale_service",
+            "slow_downstream": "scale_service",
+            "thundering_herd": "apply_fix",
+            "zombie_process": "restart_service",
+            "version_mismatch": "rollback_deployment",
+            "memory_leak": "restart_service",
+            "ddos": "scale_service",
+        }
+
+        expected = expected_actions.get(fault_type, "restart_service")
 
         # ── Full fix applied (explicit flag or resolved state) ──────────────
         if final_state.get("fix_applied", False):
             if fix_actions:
                 last_fix = fix_actions[-1]
                 if last_fix.get("target_service") == root_cause:
-                    expected = {
-                        "ghost": "rollback_deployment",
-                        "deployment": "rollback_deployment",
-                        "oom": "restart_service",
-                        "network": "scale_service",
-                        "cascade": "scale_service",
-                    }
-                    if expected.get(fault_type) == last_fix.get("action_type"):
+                    if expected == last_fix.get("action_type"):
                         return 1.0
                     return 0.7  # right service, suboptimal fix method
                 return 0.3  # wrong service
@@ -330,42 +466,137 @@ class EnhancedSREGrader:
         if fix_actions:
             last_fix = fix_actions[-1]
             if last_fix.get("target_service") == root_cause:
-                # Right service — partial credit even without explicit fix_applied
-                expected = {
-                    "ghost": "rollback_deployment",
-                    "deployment": "rollback_deployment",
-                    "oom": "restart_service",
-                    "network": "scale_service",
-                    "cascade": "scale_service",
-                }
-                if expected.get(fault_type) == last_fix.get("action_type"):
+                if expected == last_fix.get("action_type"):
                     return 0.8   # full method on right service, but state not resolved
                 return 0.6       # right service, suboptimal method
 
-            # Wrong service — small credit for attempting something
-            return 0.15
+            # Wrong service — grade-level-dependent partial credit for attempting something
+            wrong_service_credit = {"beginner": 0.25, "intermediate": 0.15, "advanced": 0.05}
+            return wrong_service_credit.get(grade_level, 0.15)
 
-        # ── Partial credit: right service queried / investigated but no fix yet ─
+        # ── Partial credit: right service investigated but no fix applied ─
         for action in actions:
             if action.get("target_service") == root_cause and action.get("action_type", "").startswith("query_"):
-                return 0.2   # investigated correctly but didn't apply a fix
+                # Grade-level-dependent: beginner gets more credit for good investigation
+                investigation_credit = {"beginner": 0.35, "intermediate": 0.2, "advanced": 0.1}
+                return investigation_credit.get(grade_level, 0.2)
 
         return 0.0
-    
-    def _score_efficiency(self, step_count: int, fault_type: str, difficulty: int = 3) -> float:
-        """Score efficiency — difficulty-aware"""
+
+    def _score_slo(self, step_count: int, difficulty: int, grade_level: str = "intermediate") -> float:
+        """
+        Score SLO adherence based on task-specific time budget.
+
+        SLO tiers:
+        - Difficulty 1: 5 steps (beginner)
+        - Difficulty 2: 8 steps
+        - Difficulty 3: 12 steps (intermediate)
+        - Difficulty 4: 18 steps
+        - Difficulty 5: 25 steps (advanced)
+
+        Scoring:
+        - Within SLO: 1.0
+        - Up to 50% over SLO: linear decay
+        - Beyond 100% over SLO: floor at 0.1
+        """
+        slo_budget = self.SLO_TIERS.get(difficulty, 12)
+        slo_ratio = step_count / slo_budget
+
+        if slo_ratio <= 1.0:
+            return 1.0
+        elif slo_ratio <= 1.5:
+            # Linear decay from 1.0 to 0.5
+            return 1.0 - (slo_ratio - 1.0)
+        elif slo_ratio <= 2.0:
+            # Linear decay from 0.5 to 0.2
+            return 0.5 - (slo_ratio - 1.5) * 0.6
+        else:
+            return max(0.1, 0.2 - (slo_ratio - 2.0) * 0.05)
+
+    def _score_efficiency(
+        self,
+        step_count: int,
+        fault_type: str,
+        difficulty: int = 3,
+        grade_level: str = "intermediate"
+    ) -> float:
+        """Score efficiency — difficulty-aware with grade-level adjustments."""
         optimal = self._get_optimal_steps(fault_type, difficulty)
+
+        # Grade-level bonuses: beginner gets slightly more forgiveness
+        grace_steps = {"beginner": 3, "intermediate": 2, "advanced": 1}
+        grace = grace_steps.get(grade_level, 2)
 
         if step_count <= optimal:
             return 1.0
-        elif step_count <= optimal + 2:
-            return 0.8
-        elif step_count <= optimal + 5:
-            return 0.6
-        elif step_count <= optimal + 10:
-            return 0.4
+        elif step_count <= optimal + grace:
+            return 0.85
+        elif step_count <= optimal + grace + 3:
+            return 0.7
+        elif step_count <= optimal + grace + 7:
+            return 0.5
         else:
-            return 0.2
+            return max(0.15, 0.3 - (step_count - optimal - grace - 7) * 0.02)
+
+    def _score_investigation_thoroughness(
+        self,
+        actions: list[dict],
+        fault_type: str,
+        root_cause: str,
+        grade_level: str = "intermediate"
+    ) -> float:
+        """
+        Score investigation thoroughness — did agent gather sufficient evidence?
+
+        Components:
+        - Queried root cause service metrics (40%)
+        - Queried logs on root cause (20%)
+        - Used dependency queries for cascade faults (20%)
+        - Queried deployment history for ghost faults (20%)
+        """
+        if not actions:
+            return 0.0
+
+        score = 0.0
+        investigation_types = {"query_service", "query_metrics", "query_logs", "query_memory", "query_dependencies", "query_deployments"}
+
+        # 1. Queried metrics on root cause (40%)
+        metrics_on_root = any(
+            a.get("action_type") == "query_metrics" and a.get("target_service") == root_cause
+            for a in actions
+        )
+        if metrics_on_root:
+            score += 0.4
+
+        # 2. Queried logs on root cause (20%)
+        logs_on_root = any(
+            a.get("action_type") == "query_logs" and a.get("target_service") == root_cause
+            for a in actions
+        )
+        if logs_on_root:
+            score += 0.2
+
+        # 3. Dependency queries for cascade/network faults (20%)
+        if fault_type in ("cascade", "network", "slow_downstream", "network_partition"):
+            queried_deps = any(a.get("action_type") == "query_dependencies" for a in actions)
+            if queried_deps:
+                score += 0.2
+            else:
+                # Partial credit: queried some service metrics without deps
+                if any(a.get("action_type", "").startswith("query_") for a in actions):
+                    score += 0.1
+
+        # 4. Deployment history for ghost/deployment/version_mismatch faults (20%)
+        if fault_type in ("ghost", "deployment", "version_mismatch", "config_drift"):
+            queried_deployments = any(a.get("action_type") == "query_deployments" for a in actions)
+            if queried_deployments:
+                score += 0.2
+            else:
+                # Partial credit: queried metrics (may be sufficient at lower difficulty)
+                if any(a.get("action_type") == "query_metrics" for a in actions):
+                    score += 0.1
+
+        return min(1.0, score)
     
     def _score_disruption(
         self,
@@ -582,28 +813,43 @@ class EnhancedSREGrader:
         self,
         actions: list[dict],
         root_cause: str,
-        affected: set[str]
+        affected: set[str],
+        grade_level: str = "intermediate"
     ) -> float:
-        """Calculate additional penalties"""
+        """Calculate additional penalties with grade-level adjustments."""
         penalties = 0.0
-        
+
         # Penalty for multiple incorrect root cause attempts
         incorrect_attempts = sum(
             1 for a in actions
             if a.get("action_type") == "identify_root_cause"
             and a.get("target_service") != root_cause
         )
-        penalties += incorrect_attempts * 0.05
-        
-        # Penalty for excessive restarts
+        # Grade-level: beginners get more leeway
+        penalty_per_incorrect = {"beginner": 0.03, "intermediate": 0.05, "advanced": 0.08}
+        penalties += incorrect_attempts * penalty_per_incorrect.get(grade_level, 0.05)
+
+        # Penalty for excessive restarts (more than 1 is excessive)
         restart_count = sum(
             1 for a in actions
             if a.get("action_type") == "restart_service"
         )
-        if restart_count > 2:
-            penalties += (restart_count - 2) * 0.05
-        
-        return penalties
+        if restart_count > 1:
+            penalties += (restart_count - 1) * 0.05
+
+        # Penalty for brute-force pattern (guessing on wrong services repeatedly)
+        fix_actions = [
+            a for a in actions
+            if a.get("action_type") in ("restart_service", "rollback_deployment", "apply_fix", "scale_service")
+        ]
+        wrong_service_fixes = sum(
+            1 for a in fix_actions
+            if a.get("target_service") != root_cause
+        )
+        if wrong_service_fixes >= 2:
+            penalties += 0.1
+
+        return min(0.4, penalties)  # Cap total penalties at 0.4
     
     def _assign_grade(self, score: float) -> SREGrade:
         """Assign grade based on score"""
@@ -623,18 +869,22 @@ class EnhancedSREGrader:
         breakdown: ScoringBreakdown,
         reasoning: ReasoningAnalysis,
         fault_type: str,
-        root_cause: str
+        root_cause: str,
+        difficulty: int = 3
     ) -> str:
         """Generate explanation text with helpful guidance for all levels."""
+        slo_budget = self.SLO_TIERS.get(difficulty, 12)
         parts = [
-            f"Grade: {breakdown.grade.value.upper()} (Score: {breakdown.final_score:.2f})",
+            f"Grade: {breakdown.grade.value.upper()} (Score: {breakdown.final_score:.2f}) [{breakdown.grade_level}]",
             "",
             "Scoring Breakdown:",
-            f"  Root Cause: {breakdown.root_cause_score:.0%} × 0.25 = {breakdown.root_cause_weighted:.3f}",
-            f"  Fix: {breakdown.fix_score:.0%} × 0.25 = {breakdown.fix_weighted:.3f}",
-            f"  Efficiency: {breakdown.efficiency_score:.0%} × 0.20 = {breakdown.efficiency_weighted:.3f}",
-            f"  Disruption: {breakdown.disruption_score:.0%} × 0.15 = {breakdown.disruption_weighted:.3f}",
-            f"  Reasoning: {breakdown.reasoning_score:.0%} × 0.15 = {breakdown.reasoning_weighted:.3f}",
+            f"  Root Cause: {breakdown.root_cause_score:.0%} × 0.20 = {breakdown.root_cause_weighted:.3f}",
+            f"  Fix: {breakdown.fix_score:.0%} × 0.20 = {breakdown.fix_weighted:.3f}",
+            f"  SLO: {breakdown.slo_score:.0%} × 0.15 = {breakdown.slo_weighted:.3f} (budget: {slo_budget} steps)",
+            f"  Efficiency: {breakdown.efficiency_score:.0%} × 0.15 = {breakdown.efficiency_weighted:.3f}",
+            f"  Disruption: {breakdown.disruption_score:.0%} × 0.10 = {breakdown.disruption_weighted:.3f}",
+            f"  Reasoning: {breakdown.reasoning_score:.0%} × 0.10 = {breakdown.reasoning_weighted:.3f}",
+            f"  Investigation: {breakdown.investigation_score:.0%} × 0.10 = {breakdown.investigation_weighted:.3f}",
             "",
             f"Reasoning Pattern: {reasoning.pattern.value}",
         ]
@@ -643,7 +893,7 @@ class EnhancedSREGrader:
         if breakdown.root_cause_score == 0.0 and breakdown.fix_score == 0.0:
             parts.append("")
             parts.append("No investigation or fix actions detected.")
-            parts.append("Hint: Start by querying service metrics or logs to observe symptoms,")
+            parts.append(f"Hint: Start by querying service metrics or logs to observe symptoms,")
             parts.append(f"      then narrow down to the root cause ({root_cause} for {fault_type} faults).")
 
         # ── Partial progress feedback ──────────────────────────────────────────
@@ -656,6 +906,14 @@ class EnhancedSREGrader:
             parts.append("")
             parts.append("Fix attempted on the right service — nearly there!")
             parts.append("Tip: Check if the correct fix action type is being used for this fault type.")
+
+        if breakdown.investigation_score < 0.5:
+            parts.append("")
+            parts.append("Investigation could be more thorough: query both metrics and logs on the root cause.")
+
+        if breakdown.slo_score < 0.5:
+            parts.append("")
+            parts.append("SLO budget exceeded — try to resolve faster by narrowing investigation scope.")
 
         if reasoning.followed_false_leads:
             parts.append(f"  False leads followed: {reasoning.followed_false_leads}")
@@ -675,24 +933,30 @@ class EnhancedSREGrader:
     ) -> list[str]:
         """Identify strengths"""
         strengths = []
-        
+
         if breakdown.root_cause_score >= 0.9:
             strengths.append("Correctly identified root cause")
-        
+
         if breakdown.fix_score >= 0.9:
             strengths.append("Applied optimal fix")
-        
+
+        if breakdown.slo_score >= 0.9:
+            strengths.append("Met SLO — excellent resolution speed")
+
         if breakdown.efficiency_score >= 0.9:
             strengths.append("Very efficient resolution")
-        
+
+        if breakdown.investigation_score >= 0.7:
+            strengths.append("Thorough investigation — gathered sufficient evidence")
+
         if reasoning.followed_logical_path:
             strengths.append("Followed logical investigation path")
-        
+
         if reasoning.avoided_misleading_signals:
             strengths.append("Avoided misleading signals")
-        
+
         return strengths
-    
+
     def _identify_weaknesses(
         self,
         breakdown: ScoringBreakdown,
@@ -700,29 +964,36 @@ class EnhancedSREGrader:
     ) -> list[str]:
         """Identify weaknesses"""
         weaknesses = []
-        
+
         if breakdown.root_cause_score < 0.5:
             weaknesses.append("Failed to identify root cause")
-        
+
         if breakdown.fix_score < 0.5:
             weaknesses.append("Incorrect or no fix applied")
-        
+
+        if breakdown.slo_score < 0.5:
+            weaknesses.append("Exceeded SLO time budget")
+
         if breakdown.efficiency_score < 0.5:
-            weaknesses.append("Inefficient resolution")
-        
+            weaknesses.append("Inefficient resolution — too many steps")
+
+        if breakdown.investigation_score < 0.4:
+            weaknesses.append("Shallow investigation — queried logs/metrics insufficiently")
+
         if reasoning.followed_false_leads:
             weaknesses.append(f"Followed false leads: {reasoning.followed_false_leads}")
-        
+
         if reasoning.missed_key_evidence:
             weaknesses.append(f"Missed key evidence: {reasoning.missed_key_evidence}")
-        
+
         return weaknesses
     
     def _generate_suggestions(
         self,
         breakdown: ScoringBreakdown,
         reasoning: ReasoningAnalysis,
-        fault_type: str
+        fault_type: str,
+        difficulty: int = 3
     ) -> list[str]:
         """Generate actionable improvement suggestions per fault type"""
         suggestions = []
@@ -739,6 +1010,14 @@ class EnhancedSREGrader:
 
         if breakdown.efficiency_score < 0.7:
             suggestions.append("Reduce redundant queries — use query_dependencies once to map all services, then focus on suspicious ones")
+
+        # Investigation thoroughness suggestions
+        if breakdown.investigation_score < 0.5:
+            suggestions.append("Query BOTH metrics and logs on the root cause service before applying a fix")
+
+        # SLO suggestions
+        if breakdown.slo_score < 0.7:
+            suggestions.append(f"SLO budget: {self.SLO_TIERS.get(difficulty, 12)} steps — focus investigation on the most suspicious service first")
 
         # Fault-type-specific actionable suggestions
         fault_actionable: dict[str, list[str]] = {
@@ -769,6 +1048,46 @@ class EnhancedSREGrader:
                 "Use query_metrics to find the service with highest error_rate or latency spike",
                 "scale_service on api-gateway usually fixes DDoS/network bottleneck",
             ],
+            "cert_expiry": [
+                "TLS cert expiry shows no errors initially — check cert expiration dates explicitly",
+                "query_deployments may reveal recent infrastructure changes",
+            ],
+            "config_drift": [
+                "Config drift requires querying query_deployments or query_service for current config",
+                "apply_fix with corrected config is the standard remediation",
+            ],
+            "data_corruption": [
+                "Data corruption may be silent — check query_metrics for anomaly detection signals",
+                "rollback_deployment is the fastest mitigation for deployment-related corruption",
+            ],
+            "network_partition": [
+                "Network partitions cause split-brain — query_dependencies shows which services can't reach each other",
+                "scale_service on the gateway service often restores connectivity",
+            ],
+            "slow_downstream": [
+                "Slow downstream: query_metrics on the calling service first, then trace to slowest dependency",
+                "scale_service on the slow downstream is the correct fix",
+            ],
+            "thundering_herd": [
+                "Thundering herd: check cache hit rates and query patterns before applying fix",
+                "apply_fix with circuit breaker or rate limiting configuration",
+            ],
+            "zombie_process": [
+                "Zombie processes: check process status via query_metrics for orphaned processes",
+                "restart_service clears zombie processes",
+            ],
+            "version_mismatch": [
+                "Version mismatch: check query_deployments for version inconsistencies",
+                "rollback_deployment to a compatible version",
+            ],
+            "memory_leak": [
+                "Memory leaks: query_metrics multiple times to observe trend (~4% growth per step)",
+                "restart_service is the fix but monitor for recurrence",
+            ],
+            "ddos": [
+                "DDoS: check api-gateway throughput via query_metrics (50x spike in requests_per_sec)",
+                "scale_service on api-gateway absorbs the traffic spike",
+            ],
         }
 
         for fault, msgs in fault_actionable.items():
@@ -789,8 +1108,9 @@ class EnhancedSREGrader:
 
 # ── Task → scenario inference ──────────────────────────────────────────────
 
-# Canonical task → (fault_type, root_cause_service, affected_services, difficulty)
+# All 15 fault types mapped to scenario parameters for grading
 _TASK_SCENARIOS: dict[str, dict] = {
+    # Canonical 5 tasks
     "oom_crash": {
         "fault_type": "oom",
         "root_cause_service": "payment-service",
@@ -821,7 +1141,7 @@ _TASK_SCENARIOS: dict[str, dict] = {
         "affected_services": {"analytics-service", "database-replica"},
         "difficulty": 4,
     },
-    # Generic aliases
+    # Generic aliases for canonical faults
     "oom": {
         "fault_type": "oom",
         "root_cause_service": "payment-service",
@@ -842,6 +1162,67 @@ _TASK_SCENARIOS: dict[str, dict] = {
     },
     "network": {
         "fault_type": "network",
+        "root_cause_service": "api-gateway",
+        "affected_services": {"api-gateway", "auth-service", "order-service"},
+        "difficulty": 3,
+    },
+    # Extended fault aliases
+    "cert_expiry": {
+        "fault_type": "cert_expiry",
+        "root_cause_service": "api-gateway",
+        "affected_services": {"api-gateway", "auth-service"},
+        "difficulty": 2,
+    },
+    "config_drift": {
+        "fault_type": "config_drift",
+        "root_cause_service": "order-service",
+        "affected_services": {"order-service", "payment-service"},
+        "difficulty": 3,
+    },
+    "data_corruption": {
+        "fault_type": "data_corruption",
+        "root_cause_service": "recommendation-service",
+        "affected_services": {"recommendation-service", "order-service"},
+        "difficulty": 4,
+    },
+    "network_partition": {
+        "fault_type": "network_partition",
+        "root_cause_service": "api-gateway",
+        "affected_services": {"api-gateway", "user-service", "auth-service"},
+        "difficulty": 3,
+    },
+    "slow_downstream": {
+        "fault_type": "slow_downstream",
+        "root_cause_service": "database-replica",
+        "affected_services": {"database-replica", "search-service", "recommendation-service"},
+        "difficulty": 3,
+    },
+    "thundering_herd": {
+        "fault_type": "thundering_herd",
+        "root_cause_service": "cache-service",
+        "affected_services": {"cache-service", "order-service", "user-service"},
+        "difficulty": 3,
+    },
+    "zombie_process": {
+        "fault_type": "zombie_process",
+        "root_cause_service": "payment-service",
+        "affected_services": {"payment-service", "order-service"},
+        "difficulty": 2,
+    },
+    "version_mismatch": {
+        "fault_type": "version_mismatch",
+        "root_cause_service": "notification-service",
+        "affected_services": {"notification-service", "order-service"},
+        "difficulty": 3,
+    },
+    "memory_leak": {
+        "fault_type": "memory_leak",
+        "root_cause_service": "analytics-service",
+        "affected_services": {"analytics-service", "database-replica"},
+        "difficulty": 4,
+    },
+    "ddos": {
+        "fault_type": "ddos",
         "root_cause_service": "api-gateway",
         "affected_services": {"api-gateway", "auth-service", "order-service"},
         "difficulty": 3,

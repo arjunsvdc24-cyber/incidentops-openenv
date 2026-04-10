@@ -280,9 +280,11 @@ class ResetRequest(BaseModel):
 class GradeBreakdown(BaseModel):
     root_cause_accuracy: float = Field(description="Root cause identification score (0.0-1.0)")
     fix_correctness: float = Field(description="Fix correctness score (0.0-1.0)")
-    efficiency: float = Field(description="Efficiency score (0.0-1.0)")
+    slo_adherence: float = Field(description="SLO time budget adherence score (0.0-1.0)")
+    efficiency: float = Field(description="Efficiency score vs optimal steps (0.0-1.0)")
     minimal_disruption: float = Field(description="Minimal disruption score (0.0-1.0)")
     reasoning_quality: float = Field(description="Reasoning quality score (0.0-1.0)")
+    investigation_thoroughness: float = Field(description="Investigation thoroughness score (0.0-1.0)")
 
 
 class GradeResponse(BaseModel):
@@ -746,41 +748,56 @@ async def list_actions():
 @app.get("/tasks")
 async def get_tasks():
     from app.__init__ import __version__
+
+    # All 15 graded tasks with full metadata
+    # grade_level: beginner (d1-2), intermediate (d3), advanced (d4-5)
     canonical_tasks = [
         {
             "id": "oom_crash",
             "name": "The OOM Crash",
             "difficulty": "easy",
+            "grade_level": "beginner",
             "difficulty_level": 2,
             "fault_type": "oom",
             "description": "A single payment-service pod crashes with OutOfMemoryError. "
                            "Logs reveal the fault directly. Agent must query logs, identify "
                            "the crash, and restart the correct service without touching "
                            "unaffected services.",
+            "difficulty_rationale": "OOM faults have explicit error logs — easy to identify "
+                                    "root cause with one query_logs call. Best entry point.",
             "hints": ["Start with query_logs on payment-service",
                       "Look for OutOfMemoryError in the logs"],
             "expected_min_steps": 2,
             "expected_max_steps": 8,
+            "correct_fix": "restart_service",
+            "slo_budget_steps": 8,
         },
         {
             "id": "cascade_failure",
             "name": "The Cascade",
             "difficulty": "medium",
+            "grade_level": "intermediate",
             "difficulty_level": 3,
             "fault_type": "cascade",
             "description": "The user-db connection pool exhausts silently. Three upstream "
                            "services return 503s with misleading timeout errors. Agent must "
                            "correlate metrics across services, trace the cascade back to the "
                            "database, and apply the correct fix.",
+            "difficulty_rationale": "Requires dependency graph understanding to trace 503s "
+                                    "back to the shared database dependency. Misleading signals "
+                                    "on symptom services require discrimination.",
             "hints": ["503s on multiple services suggest a shared dependency",
                       "Check database-primary connection metrics"],
             "expected_min_steps": 4,
             "expected_max_steps": 14,
+            "correct_fix": "scale_service",
+            "slo_budget_steps": 12,
         },
         {
             "id": "ghost_corruption",
             "name": "The Ghost",
             "difficulty": "hard",
+            "grade_level": "advanced",
             "difficulty_level": 5,
             "fault_type": "ghost",
             "description": "A queue consumer has a logic bug introduced via a recent deploy. "
@@ -788,15 +805,21 @@ async def get_tasks():
                            "crashes, only subtle metric drift in click-through rates. Agent "
                            "must cross-correlate the deploy timeline, identify the regression, "
                            "and rollback the deployment.",
+            "difficulty_rationale": "Silent faults have no explicit error signals. Requires "
+                                    "detecting gradual metric drift (CTR decline) and correlating "
+                                    "with deployment timeline. Only fix is rollback_deployment.",
             "hints": ["No alerts means the signal is in metrics, not logs",
                       "Correlate deploy timeline with when metrics drifted"],
             "expected_min_steps": 6,
             "expected_max_steps": 20,
+            "correct_fix": "rollback_deployment",
+            "slo_budget_steps": 25,
         },
         {
             "id": "ddos_flood",
             "name": "The DDoS Flood",
             "difficulty": "medium",
+            "grade_level": "intermediate",
             "difficulty_level": 3,
             "fault_type": "network",
             "description": "api-gateway is overwhelmed by a 50x traffic spike. Latency "
@@ -804,15 +827,21 @@ async def get_tasks():
                            "signals show connection timeouts on auth-service and order-service "
                            "but not on api-gateway itself. Agent must identify the gateway "
                            "as the bottleneck and scale it.",
+            "difficulty_rationale": "Deceptive signals on downstream services (auth-service, "
+                                    "order-service) blame each other — requires tracing latency "
+                                    "back to the gateway bottleneck.",
             "hints": ["High latency across many services suggests an upstream bottleneck",
                       "Check api-gateway throughput — not just error logs"],
             "expected_min_steps": 3,
             "expected_max_steps": 12,
+            "correct_fix": "scale_service",
+            "slo_budget_steps": 12,
         },
         {
             "id": "memory_spiral",
             "name": "The Memory Spiral",
             "difficulty": "medium-hard",
+            "grade_level": "advanced",
             "difficulty_level": 4,
             "fault_type": "oom",
             "description": "analytics-service has a slow memory leak — memory grows ~4% per step "
@@ -820,34 +849,330 @@ async def get_tasks():
                            "obvious after querying metrics 3+ times. database-replica shows high "
                            "CPU from analytics queries, misleading naive agents into restarting "
                            "the DB. Agent must track memory growth over time and restart analytics-service.",
+            "difficulty_rationale": "Trend detection required — one query_metrics call is "
+                                    "insufficient. Misleading DB CPU signal requires "
+                                    "discriminating between cause and effect.",
             "hints": ["Track memory_percent across multiple query_metrics calls to spot the trend",
                       "High CPU on database-replica is a symptom, not the root cause"],
             "expected_min_steps": 5,
             "expected_max_steps": 16,
+            "correct_fix": "restart_service",
+            "slo_budget_steps": 18,
         },
     ]
 
-    # Try loading extended faults from registry
+    # Extended fault tasks (difficulty-aware, 2 difficulty levels each)
+    extended_tasks = [
+        # Cert Expiry (difficulty 1-2: beginner)
+        {
+            "id": "cert_expiry_1",
+            "name": "TLS Cert Expiry (Easy)",
+            "difficulty": "easy",
+            "grade_level": "beginner",
+            "difficulty_level": 1,
+            "fault_type": "cert_expiry",
+            "description": "api-gateway TLS certificate has expired. HTTPS connections fail. "
+                           "Error logs show SSL handshake failures.",
+            "difficulty_rationale": "Explicit SSL errors in logs make root cause obvious. "
+                                    "Simple restart_service restores connectivity.",
+            "hints": ["Check query_logs for SSL/TLS errors",
+                      "restart_service regenerates the cert"],
+            "expected_min_steps": 2,
+            "expected_max_steps": 6,
+            "correct_fix": "restart_service",
+            "slo_budget_steps": 5,
+        },
+        {
+            "id": "cert_expiry_2",
+            "name": "TLS Cert Expiry (Harder)",
+            "difficulty": "medium",
+            "grade_level": "intermediate",
+            "difficulty_level": 2,
+            "fault_type": "cert_expiry",
+            "description": "TLS cert on api-gateway expired with additional config drift. "
+                           "Requires both identifying cert expiry and checking config.",
+            "difficulty_rationale": "Cert expiry combined with config drift requires checking "
+                                    "both logs and deployment history.",
+            "hints": ["Check query_logs for SSL errors AND query_deployments for recent changes"],
+            "expected_min_steps": 3,
+            "expected_max_steps": 8,
+            "correct_fix": "restart_service",
+            "slo_budget_steps": 8,
+        },
+        # Config Drift (difficulty 2-3)
+        {
+            "id": "config_drift_2",
+            "name": "Config Drift (Medium)",
+            "difficulty": "medium",
+            "grade_level": "intermediate",
+            "difficulty_level": 2,
+            "fault_type": "config_drift",
+            "description": "order-service has drifted from its golden config. "
+                           "Request timeout thresholds are misconfigured, causing 503s.",
+            "difficulty_rationale": "Config drift requires comparing current config to golden config. "
+                                    "apply_fix is needed rather than simple restart.",
+            "hints": ["Check query_service for current config parameters",
+                      "query_deployments may show recent changes"],
+            "expected_min_steps": 4,
+            "expected_max_steps": 10,
+            "correct_fix": "apply_fix",
+            "slo_budget_steps": 12,
+        },
+        {
+            "id": "config_drift_3",
+            "name": "Config Drift (Hard)",
+            "difficulty": "hard",
+            "grade_level": "advanced",
+            "difficulty_level": 3,
+            "fault_type": "config_drift",
+            "description": "Database connection pool config has drifted across multiple services. "
+                           "Agent must identify the specific parameter causing exhaustion.",
+            "difficulty_rationale": "Multiple services affected by the same config drift requires "
+                                    "tracing back to the shared configuration source.",
+            "hints": ["Check query_metrics for connection_pool_usage",
+                      "Compare configs across affected services"],
+            "expected_min_steps": 5,
+            "expected_max_steps": 14,
+            "correct_fix": "apply_fix",
+            "slo_budget_steps": 15,
+        },
+        # Data Corruption (difficulty 3-4)
+        {
+            "id": "data_corruption_3",
+            "name": "Data Corruption (Hard)",
+            "difficulty": "hard",
+            "grade_level": "advanced",
+            "difficulty_level": 3,
+            "fault_type": "data_corruption",
+            "description": "recommendation-service serves stale/corrupted data after a "
+                           "database replica went out of sync. No explicit errors.",
+            "difficulty_rationale": "Silent data inconsistency with no error signals — "
+                                    "requires querying business metrics to detect quality drift.",
+            "hints": ["Check query_metrics for data freshness signals",
+                      "Compare results quality before and after deploy"],
+            "expected_min_steps": 5,
+            "expected_max_steps": 16,
+            "correct_fix": "rollback_deployment",
+            "slo_budget_steps": 18,
+        },
+        {
+            "id": "data_corruption_4",
+            "name": "Data Corruption (Expert)",
+            "difficulty": "hard",
+            "grade_level": "advanced",
+            "difficulty_level": 4,
+            "fault_type": "data_corruption",
+            "description": "Silent data corruption across multiple services after a "
+                           "schema migration. Only subtle metric anomalies visible.",
+            "difficulty_rationale": "Multi-service silent corruption requires correlating "
+                                    "anomalies across different metric types.",
+            "hints": ["Query metrics on multiple services to find the corruption pattern",
+                      "Check query_deployments for recent schema changes"],
+            "expected_min_steps": 6,
+            "expected_max_steps": 20,
+            "correct_fix": "rollback_deployment",
+            "slo_budget_steps": 22,
+        },
+        # Network Partition (difficulty 2-3)
+        {
+            "id": "network_partition_2",
+            "name": "Network Partition (Medium)",
+            "difficulty": "medium",
+            "grade_level": "intermediate",
+            "difficulty_level": 2,
+            "fault_type": "network_partition",
+            "description": "api-gateway loses connectivity to auth-service. "
+                           "Downstream services show cascading timeouts.",
+            "difficulty_rationale": "Network partition creates split-brain — requires "
+                                    "query_dependencies to map which services can't reach each other.",
+            "hints": ["Use query_dependencies to find unreachable services",
+                      "scale_service on the gateway often restores connectivity"],
+            "expected_min_steps": 3,
+            "expected_max_steps": 10,
+            "correct_fix": "scale_service",
+            "slo_budget_steps": 12,
+        },
+        {
+            "id": "network_partition_3",
+            "name": "Network Partition (Hard)",
+            "difficulty": "hard",
+            "grade_level": "advanced",
+            "difficulty_level": 3,
+            "fault_type": "network_partition",
+            "description": "Partial network partition affects two service groups. "
+                           "Some services can communicate, others cannot.",
+            "difficulty_rationale": "Partial partition requires mapping exact connectivity "
+                                    "between service groups before applying fix.",
+            "hints": ["Map which service groups can reach each other",
+                      "Check query_dependencies output carefully"],
+            "expected_min_steps": 5,
+            "expected_max_steps": 14,
+            "correct_fix": "scale_service",
+            "slo_budget_steps": 16,
+        },
+        # Slow Downstream (difficulty 2-3)
+        {
+            "id": "slow_downstream_2",
+            "name": "Slow Downstream (Medium)",
+            "difficulty": "medium",
+            "grade_level": "intermediate",
+            "difficulty_level": 2,
+            "fault_type": "slow_downstream",
+            "description": "database-replica is running slowly, causing latency "
+                           "on all services that depend on it.",
+            "difficulty_rationale": "Cascading latency requires tracing back through "
+                                    "the dependency graph to the slow service.",
+            "hints": ["Check latency metrics across services to find the bottleneck",
+                      "database-replica slowdown affects search and analytics"],
+            "expected_min_steps": 3,
+            "expected_max_steps": 10,
+            "correct_fix": "scale_service",
+            "slo_budget_steps": 12,
+        },
+        {
+            "id": "slow_downstream_3",
+            "name": "Slow Downstream (Hard)",
+            "difficulty": "hard",
+            "grade_level": "advanced",
+            "difficulty_level": 3,
+            "fault_type": "slow_downstream",
+            "description": "Multiple downstream services are slow with similar latency increases. "
+                           "Root cause is a shared dependency.",
+            "difficulty_rationale": "Multiple slow services with same root cause requires "
+                                    "distinguishing between cause and cascading effect.",
+            "hints": ["Query dependencies to find the shared bottleneck",
+                      "Check query_metrics on the most upstream affected service"],
+            "expected_min_steps": 5,
+            "expected_max_steps": 14,
+            "correct_fix": "scale_service",
+            "slo_budget_steps": 16,
+        },
+        # Thundering Herd (difficulty 3)
+        {
+            "id": "thundering_herd_3",
+            "name": "Thundering Herd",
+            "difficulty": "medium",
+            "grade_level": "intermediate",
+            "difficulty_level": 3,
+            "fault_type": "thundering_herd",
+            "description": "Cache is empty after restart. All services flood the database "
+                           "simultaneously, causing database overload.",
+            "difficulty_rationale": "Thundering herd requires identifying cache failure pattern "
+                                    "and applying circuit breaker or cache warmup.",
+            "hints": ["Check cache hit rates — 0% means cache is empty",
+                      "apply_fix with circuit breaker config or restart cache-service"],
+            "expected_min_steps": 4,
+            "expected_max_steps": 12,
+            "correct_fix": "apply_fix",
+            "slo_budget_steps": 14,
+        },
+        # Zombie Process (difficulty 1-2)
+        {
+            "id": "zombie_process_1",
+            "name": "Zombie Process (Easy)",
+            "difficulty": "easy",
+            "grade_level": "beginner",
+            "difficulty_level": 1,
+            "fault_type": "zombie_process",
+            "description": "payment-service has zombie processes consuming resources. "
+                           "Service appears healthy but throughput is degraded.",
+            "difficulty_rationale": "Zombie processes visible in process metrics. "
+                                    "restart_service clears zombie processes.",
+            "hints": ["Check query_metrics for zombie process indicators",
+                      "restart_service clears orphaned processes"],
+            "expected_min_steps": 2,
+            "expected_max_steps": 6,
+            "correct_fix": "restart_service",
+            "slo_budget_steps": 5,
+        },
+        {
+            "id": "zombie_process_2",
+            "name": "Zombie Process (Medium)",
+            "difficulty": "medium",
+            "grade_level": "intermediate",
+            "difficulty_level": 2,
+            "fault_type": "zombie_process",
+            "description": "Multiple services have zombie processes after a deployment "
+                           "failure. Resources are depleted.",
+            "difficulty_rationale": "Multi-service zombie process issue requires identifying "
+                                    "which service is the origin.",
+            "hints": ["Query metrics on all services to find resource exhaustion pattern",
+                      "restart_service on the origin service"],
+            "expected_min_steps": 4,
+            "expected_max_steps": 10,
+            "correct_fix": "restart_service",
+            "slo_budget_steps": 8,
+        },
+        # Version Mismatch (difficulty 2-3)
+        {
+            "id": "version_mismatch_2",
+            "name": "Version Mismatch (Medium)",
+            "difficulty": "medium",
+            "grade_level": "intermediate",
+            "difficulty_level": 2,
+            "fault_type": "version_mismatch",
+            "description": "notification-service was deployed with incompatible API version. "
+                           "It cannot communicate with email-service.",
+            "difficulty_rationale": "Version mismatch requires checking deployment history "
+                                    "and rolling back to compatible version.",
+            "hints": ["Check query_deployments for version history",
+                      "rollback_deployment to previous working version"],
+            "expected_min_steps": 3,
+            "expected_max_steps": 10,
+            "correct_fix": "rollback_deployment",
+            "slo_budget_steps": 12,
+        },
+        {
+            "id": "version_mismatch_3",
+            "name": "Version Mismatch (Hard)",
+            "difficulty": "hard",
+            "grade_level": "advanced",
+            "difficulty_level": 3,
+            "fault_type": "version_mismatch",
+            "description": "API version mismatch across multiple services after a "
+                           "coordinated rollout. Some endpoints are incompatible.",
+            "difficulty_rationale": "Multi-service version mismatch requires identifying "
+                                    "which version is the correct baseline.",
+            "hints": ["Check query_deployments across all affected services",
+                      "Identify the common working version"],
+            "expected_min_steps": 5,
+            "expected_max_steps": 14,
+            "correct_fix": "rollback_deployment",
+            "slo_budget_steps": 15,
+        },
+    ]
+
+    # Supplement with FaultRegistry tasks for full coverage
     try:
         from app.faults.registry import FaultRegistry
-        extended_tasks = []
         for fault_name in FaultRegistry.list():
             fault = FaultRegistry.get(fault_name)
             for diff in range(fault.difficulty_range[0], min(fault.difficulty_range[1], 5) + 1):
+                task_id = f"{fault_name}_{diff}"
+                # Skip if already in extended_tasks
+                if any(t["id"] == task_id for t in extended_tasks):
+                    continue
+                grade_lvl = "beginner" if diff <= 2 else ("intermediate" if diff <= 3 else "advanced")
+                slo_map = {1: 5, 2: 8, 3: 12, 4: 18, 5: 25}
                 extended_tasks.append({
-                    "id": f"{fault_name}_{diff}",
+                    "id": task_id,
                     "name": f"{fault.name.replace('_', ' ').title()} (Difficulty {diff})",
                     "difficulty": "easy" if diff <= 2 else ("medium" if diff <= 3 else "hard"),
+                    "grade_level": grade_lvl,
                     "difficulty_level": diff,
                     "fault_type": fault.name,
                     "description": f"Scenario: {fault.name.replace('_', ' ')} at difficulty {diff}",
+                    "difficulty_rationale": f"Complexity increases with difficulty level {diff}",
                     "hints": fault.get_symptoms()[:2],
                     "expected_min_steps": diff + 1,
                     "expected_max_steps": (diff + 1) * 4,
+                    "correct_fix": fault.get_symptoms()[0].split()[0] if fault.get_symptoms() else "restart_service",
+                    "slo_budget_steps": slo_map.get(diff, 12),
                 })
-        all_tasks = canonical_tasks + extended_tasks
     except ImportError:
-        all_tasks = canonical_tasks
+        pass  # FaultRegistry not available
+
+    all_tasks = canonical_tasks + extended_tasks
 
     return {
         "total": len(all_tasks),
@@ -870,6 +1195,29 @@ async def get_tasks():
             },
             "required": ["action_type"],
             "example": {"action_type": "query_logs", "target_service": "payment-service", "parameters": {}},
+        },
+        "grading_info": {
+            "weights": {
+                "root_cause": 0.20,
+                "fix": 0.20,
+                "slo": 0.15,
+                "efficiency": 0.15,
+                "disruption": 0.10,
+                "reasoning": 0.10,
+                "investigation": 0.10,
+            },
+            "grade_levels": {
+                "beginner": "difficulty 1-2, most forgiving rubric",
+                "intermediate": "difficulty 3, standard rubric",
+                "advanced": "difficulty 4-5, strictest rubric",
+            },
+            "slo_tiers": {
+                1: "5 steps",
+                2: "8 steps",
+                3: "12 steps",
+                4: "18 steps",
+                5: "25 steps",
+            },
         },
     }
 
@@ -916,9 +1264,11 @@ async def grade(request: Request, body: GradeRequest):
             breakdown=GradeBreakdown(
                 root_cause_accuracy=evaluation.breakdown.root_cause_score,
                 fix_correctness=evaluation.breakdown.fix_score,
+                slo_adherence=evaluation.breakdown.slo_score,
                 efficiency=evaluation.breakdown.efficiency_score,
                 minimal_disruption=evaluation.breakdown.disruption_score,
                 reasoning_quality=evaluation.breakdown.reasoning_score,
+                investigation_thoroughness=evaluation.breakdown.investigation_score,
             ),
             reasoning_pattern=evaluation.reasoning_analysis.pattern.value,
         )
@@ -934,11 +1284,13 @@ async def grade(request: Request, body: GradeRequest):
             weaknesses=[],
             suggestions=[],
             breakdown=GradeBreakdown(
-                root_cause_accuracy=0.0,
-                fix_correctness=0.0,
-                efficiency=0.0,
-                minimal_disruption=0.0,
-                reasoning_quality=0.0,
+                root_cause_accuracy=score.root_cause_score,
+                fix_correctness=score.fix_score,
+                slo_adherence=score.slo_preservation_score,
+                efficiency=score.efficiency_score,
+                minimal_disruption=score.minimal_disruption_score,
+                reasoning_quality=score.reasoning_chain_score,
+                investigation_thoroughness=score.reasoning_chain_score,
             ),
             reasoning_pattern="unknown",
         )

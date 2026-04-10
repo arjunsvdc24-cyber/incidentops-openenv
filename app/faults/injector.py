@@ -73,6 +73,8 @@ class FaultScenario:
     deploy_timeline: list[DeployEvent] = field(default_factory=list)
     degradation_pattern: Optional[dict] = None
     is_memory_leak: bool = False  # Task 5: slow leak requiring step-trend detection
+    # Partial network partition: simulate partial packet loss (e.g. 20% packet loss)
+    partial_partition_loss: Optional[float] = None
     # Decoy alerts: injected into observation to mislead rule-based agents.
     # Each is a dict with 'service', 'severity', 'message' fields.
     decoy_alerts: list[dict] = field(default_factory=list)
@@ -382,6 +384,8 @@ class FaultInjector:
 
     def _generate_network_scenario(self, difficulty: int) -> FaultScenario:  # pragma: no cover
         root_cause = self.rng.choice(["api-gateway", "cache-service"])  # pragma: no cover
+        # Partial network partition: 20% packet loss simulates lossy network links
+        packet_loss = 0.20 if difficulty >= 2 else None  # pragma: no cover
 
         return FaultScenario(
             fault_type=FaultType.NETWORK,
@@ -390,6 +394,7 @@ class FaultInjector:
             symptoms=[
                 "Connection timeouts",
                 "High latency",
+                "Packet loss observed (20%)" if packet_loss else "Intermittent timeouts",
             ],
             misleading_signals=self._generate_misleading_signals(difficulty),
             required_investigation_steps=[
@@ -398,6 +403,7 @@ class FaultInjector:
             ],
             correct_fix="scale_service:" + root_cause,
             difficulty=difficulty,
+            partial_partition_loss=packet_loss,
         )
 
     def _generate_ddos_scenario(self, difficulty: int) -> FaultScenario:
@@ -600,6 +606,7 @@ class FaultSimulator:
                     "cpu_percent": self.rng.uniform(90, 99),
                     "memory_percent": self.rng.uniform(60, 80),
                     "requests_per_sec": self.rng.uniform(50000, 80000),
+                    "packet_loss_rate": self.scenario.partial_partition_loss or 0.0,
                 }
             # Downstream services show cascading degradation but NOT UNHEALTHY root cause
             for svc in self.scenario.affected_services:  # pragma: no cover
@@ -607,6 +614,7 @@ class FaultSimulator:
                     states[svc]["latency_ms"] = self.rng.uniform(800, 1500)  # pragma: no cover
                     states[svc]["error_rate"] = self.rng.uniform(0.2, 0.4)  # pragma: no cover
                     states[svc]["status"] = ServiceStatus.DEGRADED.value  # pragma: no cover
+                    states[svc]["packet_loss_rate"] = (self.scenario.partial_partition_loss or 0.0) * 0.5  # pragma: no cover
 
         return states
 
@@ -771,13 +779,17 @@ class FaultSimulator:
                 }
             }
 
-        return {
+        state = {
             "status": ServiceStatus.UNHEALTHY.value,
             "latency_ms": self.rng.uniform(200, 500),
             "error_rate": self.rng.uniform(0.1, 0.3),
             "cpu_percent": self.rng.uniform(80, 95),
             "memory_percent": self.rng.uniform(85, 98),
         }
+        # Add packet loss rate for partial network partition scenarios
+        if self.scenario.partial_partition_loss:
+            state["packet_loss_rate"] = self.scenario.partial_partition_loss
+        return state
 
     def _generate_affected_state(self, service: str) -> dict:
         return {

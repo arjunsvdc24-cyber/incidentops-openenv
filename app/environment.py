@@ -161,6 +161,10 @@ class IncidentEnv:
 
         # Memory spiral tracking (Task 5)
         self._memory_leak_step: int = 0
+
+        # Distributed tracing tracking (v15.1)
+        self._trace_id: int = 0
+        self._correlation_counter: int = 0
     
     # === OpenEnv Core Methods ===
     
@@ -183,6 +187,10 @@ class IncidentEnv:
         self._observed_logs.clear()
         self._observed_metrics.clear()
         self._memory_leak_step = 0
+
+        # Distributed tracing: reset with seed-based determinism
+        self._trace_id = 100000 + self.config.seed
+        self._correlation_counter = 0
         
         # Generate new fault scenario
         self.current_scenario = self.fault_injector.generate_scenario(
@@ -243,6 +251,19 @@ class IncidentEnv:
             reward -= 0.1  # Penalty for operating in SLA breach zone
         elif sla.get("urgency") == "elevated":
             reward -= 0.05  # Warning zone
+
+        # Progressive SLO degradation penalty — business impact escalates over time
+        slo_metrics = self._calculate_slo_metrics()
+        # Availability SLO penalty: if below 90%, penalize per step
+        availability = slo_metrics.get("availability_percent", 100.0)
+        if availability < 90.0:
+            shortfall = (90.0 - availability) / 90.0
+            reward -= 0.05 * shortfall
+        # Error budget burn penalty: if error budget is depleted, escalate
+        error_budget = slo_metrics.get("error_budget_remaining_percent", 100.0)
+        if error_budget < 30.0:
+            budget_shortfall = (30.0 - error_budget) / 30.0
+            reward -= 0.08 * budget_shortfall
 
         self.episode_rewards.append(reward)
 
@@ -630,9 +651,25 @@ class IncidentEnv:
         slo_metrics = self._calculate_slo_metrics()
         business_impact = self._calculate_business_impact()
         sla_deadline = self._get_sla_deadline()
+
+        # Advance distributed tracing IDs
+        self._trace_id += 1
+        self._correlation_counter += 1
+
+        # Inject trace_id and correlation_id into service states for distributed tracing
+        enriched_services: dict = {}
+        for svc, state in self.services.items():
+            enriched: dict = dict(state)
+            enriched["trace_id"] = f"trace-{self.config.seed:06d}-{self._trace_id:08d}"
+            enriched["correlation_id"] = f"corr-{self.config.seed:06d}-{self._correlation_counter:06d}"
+            enriched["circuit_breaker_state"] = self._get_circuit_breaker_state(svc, state)
+            enriched["retry_count"] = self._get_retry_state(svc, state)
+            enriched["alert_confidence"] = self._get_alert_confidence(svc, state)
+            enriched_services[svc] = enriched
+
         return {
             "step": self.current_step,
-            "services": self.services,
+            "services": enriched_services,
             "alerts": self._get_alerts(),
             "incident_info": {
                 "fault_type": self.current_scenario.fault_type.value if self.current_scenario else None,
@@ -648,6 +685,8 @@ class IncidentEnv:
             "slo_metrics": slo_metrics,
             "business_impact": business_impact,
             "sla_deadline": sla_deadline,
+            # Service mesh metadata
+            "dependency_graph": self._get_dependency_graph_observation(),
         }
 
     def _calculate_slo_metrics(self) -> dict:
@@ -822,6 +861,9 @@ class IncidentEnv:
                 "redundant_query_penalty": reward_breakdown.redundant_query_penalty,
                 "random_action_penalty": reward_breakdown.random_action_penalty,
                 "memory_usage_bonus": reward_breakdown.memory_usage_bonus,
+                "sla_urgency_penalty": reward_breakdown.sla_urgency_penalty,
+                "slo_degradation_penalty": reward_breakdown.slo_degradation_penalty,
+                "error_budget_burn_penalty": reward_breakdown.error_budget_burn_penalty,
                 "total": reward_breakdown.total,
             },
             "episode": {
@@ -879,7 +921,80 @@ class IncidentEnv:
                 "metrics_observed": len(self._observed_metrics),
             },
         }
-    
+
+    def _get_circuit_breaker_state(self, service: str, state: dict) -> str:
+        """Determine circuit breaker state based on service health.
+
+        Closed (healthy): normal operation, requests flow through.
+        Open (unhealthy): too many failures, requests blocked.
+        Half-open (degraded): testing if service has recovered.
+        """
+        status = state.get("status", "healthy")
+        error_rate = state.get("error_rate", 0.001)
+
+        if status == "unhealthy" or error_rate > 0.15:
+            return "open"
+        elif status == "degraded" or error_rate > 0.03:
+            return "half-open"
+        else:
+            return "closed"
+
+    def _get_retry_state(self, service: str, state: dict) -> int:
+        """Determine retry count based on service latency degradation.
+
+        Simulates retry behavior: higher latency = more retries in flight.
+        """
+        status = state.get("status", "healthy")
+        latency = state.get("latency_ms", 30)
+
+        if status == "unhealthy":
+            return self.rng.randint(3, 5)
+        elif status == "degraded" or latency > 200:
+            return self.rng.randint(1, 3)
+        else:
+            return self.rng.randint(0, 1)
+
+    def _get_alert_confidence(self, service: str, state: dict) -> float:
+        """Compute confidence score for an alert on this service (0.0-1.0).
+
+        Not all alerts are 100% accurate. Confidence varies by fault type:
+        - OOM: 0.85 (heap exhaustion is clear signal)
+        - Cascade: 0.70 (connection issues can have multiple causes)
+        - Ghost: 0.40 (silent corruption is subtle)
+        - Network: 0.60 (latency spikes can be transient)
+        """
+        status = state.get("status", "healthy")
+        if status == "healthy":
+            return 0.0
+
+        fault_type = self.current_scenario.fault_type.value if self.current_scenario else "oom"
+
+        # Base confidence by status
+        if status == "unhealthy":
+            base = 0.8
+        else:
+            base = 0.5
+
+        # Adjust by fault type
+        if fault_type == "ghost":
+            base = min(base, 0.4)  # Ghost alerts are uncertain
+        elif fault_type in ("cascade", "network"):
+            base *= 0.75  # Cascade/network signals are ambiguous
+        elif fault_type in ("oom", "deployment"):
+            base *= 0.9  # OOM/deployment signals are clearer
+
+        # Add deterministic noise to confidence
+        noise = self.rng.uniform(-0.05, 0.05)
+        return round(max(0.1, min(0.95, base + noise)), 2)
+
+    def _get_dependency_graph_observation(self) -> dict:
+        """Return dependency graph for the observation."""
+        return {
+            "dependencies": DependencyPropagator.DEPENDENCY_GRAPH,
+            "reverse_dependencies": DependencyPropagator.REVERSE_DEPENDENCY_GRAPH,
+            "service_count": len(DependencyPropagator.DEPENDENCY_GRAPH),
+        }
+
     def get_dependency_graph(self) -> dict:
         """Get the full dependency graph"""
         return {

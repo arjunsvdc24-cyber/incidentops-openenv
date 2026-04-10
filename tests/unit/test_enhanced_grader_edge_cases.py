@@ -151,36 +151,39 @@ class TestScoreEfficiencyEdgeCases:
         assert score == 1.0
 
     def test_efficiency_good(self):
-        """Cover: lines 323-324 - good efficiency returns 0.8.
+        """Cover: lines 323-324 - good efficiency returns 0.85.
 
-        For oom at difficulty 3: base 4 * (0.5 + 3*0.25) = 4 * 1.25 = 5 optimal.
-        Good is optimal + 2 = 7, so 6 steps is in that range.
+        For oom at difficulty 3: optimal=5, grace=2.
+        Good range: optimal + grace = 5+2 = 7 steps, so 6 steps -> 0.85.
         """
         grader = EnhancedSREGrader()
-        # OOM at difficulty 3: optimal 5, good is 5+2=7, so 6 is in that range
+        # OOM at difficulty 3: optimal 5, grace 2, so 6 steps -> 0.85
         score = grader._score_efficiency(6, "oom", 3)
-        assert score == 0.8
+        assert score == 0.85
 
     def test_efficiency_fair(self):
-        """Cover: lines 325-326 - fair efficiency returns 0.6."""
+        """Cover: lines 325-326 - fair efficiency returns 0.7."""
         grader = EnhancedSREGrader()
-        # OOM at difficulty 3: optimal 4, fair is 4+5=9
+        # OOM at difficulty 3: optimal 5, grace 2, fair range up to 10 steps
+        # 8 steps is in fair range (7 < 8 <= 10) -> 0.7
         score = grader._score_efficiency(8, "oom", 3)
-        assert score == 0.6
+        assert score == 0.7
 
     def test_efficiency_poor(self):
-        """Cover: lines 327-328 - poor efficiency returns 0.4."""
+        """Cover: lines 327-328 - poor efficiency returns 0.5."""
         grader = EnhancedSREGrader()
-        # OOM at difficulty 3: optimal 4, poor is 4+10=14
+        # OOM at difficulty 3: optimal 5, grace 2, poor range up to 14 steps
+        # 12 steps is in poor range (10 < 12 <= 14) -> 0.5
         score = grader._score_efficiency(12, "oom", 3)
-        assert score == 0.4
+        assert score == 0.5
 
     def test_efficiency_very_poor(self):
-        """Cover: lines 329-330 - very poor efficiency returns 0.2."""
+        """Cover: lines 329-330 - very poor efficiency returns 0.18."""
         grader = EnhancedSREGrader()
-        # OOM at difficulty 3: optimal 4, very poor is 15+
+        # OOM at difficulty 3: optimal 5, grace 2, poor threshold 14 steps
+        # 20 steps -> max(0.15, 0.3 - (20-5-2-7)*0.02) = max(0.15, 0.18) = 0.18
         score = grader._score_efficiency(20, "oom", 3)
-        assert score == 0.2
+        assert score == 0.18
 
 
 class TestScoreDisruptionEdgeCases:
@@ -530,7 +533,7 @@ class TestIdentifyWeaknessesEdgeCases:
     """Test _identify_weaknesses edge cases - lines 652, 655."""
 
     def test_weaknesses_inefficient(self):
-        """Cover: line 652 - inefficient resolution weakness."""
+        """Cover: line 978 - inefficient resolution weakness."""
         grader = EnhancedSREGrader()
         from app.enhanced_grader import ScoringBreakdown, ReasoningAnalysis
 
@@ -544,7 +547,7 @@ class TestIdentifyWeaknessesEdgeCases:
         )
 
         weaknesses = grader._identify_weaknesses(breakdown, reasoning)
-        assert "Inefficient resolution" in weaknesses
+        assert any("Inefficient resolution" in w for w in weaknesses)
 
     def test_weaknesses_false_leads(self):
         """Cover: line 655 - followed false leads weakness."""

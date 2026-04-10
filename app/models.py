@@ -179,4 +179,8 @@ class RewardBreakdown(BaseModel):
     redundant_query_penalty: float = 0.0
     random_action_penalty: float = 0.0
     memory_usage_bonus: float = 0.0
+    # v15.1 SLA/SLO penalties
+    sla_urgency_penalty: float = 0.0
+    slo_degradation_penalty: float = 0.0
+    error_budget_burn_penalty: float = 0.0
     total: float = 0.0

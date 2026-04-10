@@ -37,10 +37,10 @@ class TestFaultRegistry:
 
     def test_registry_has_10_extended_faults(self):
         names = FaultRegistry.list()
-        assert len(names) == 11, f"Expected 11 extended faults, got {len(names)}: {names}"
+        assert len(names) == 12, f"Expected 12 registered faults (11 types + 1 alias), got {len(names)}: {names}"
         expected = {
             "cert_expiry", "config_drift", "data_corruption", "ddos",
-            "memory_leak", "network_partition", "slow_downstream",
+            "memory_leak", "network_partition", "noisy_neighbor", "slow_downstream",
             "thundering_herd", "version_mismatch", "zombie", "zombie_process",
         }
         assert set(names) == expected
@@ -78,8 +78,8 @@ class TestFaultInjectorBasics:
     def test_injector_list_extended_faults(self):
         inj = FaultInjector(seed=42)
         faults = inj.list_extended_faults()
-        # Extended faults (10) + canonical FaultType (5) = 15 total
-        assert len(faults) == 11  # list_extended_faults returns 11 extended types
+        # list_extended_faults returns all registered faults (12: 11 types + 1 alias)
+        assert len(faults) == 12, f"Expected 12 registered faults, got {len(faults)}"
 
 
 class TestOOMFault:
