@@ -409,13 +409,20 @@ class ComprehensiveValidator:
             ))
             
             # Test 4: Difficulty progression
+            # Map difficulty -> fault type (same as /baseline endpoint)
+            from app.fault_injector import FaultType
+            DIFF_FAULT_MAP = {
+                2: FaultType.OOM,
+                3: FaultType.CASCADE,
+                5: FaultType.GHOST,
+            }
             scores = {}
             for diff in [2, 3, 5]:
-                env = make_env(seed=self.seed, difficulty=diff)
+                env = make_env(seed=self.seed, difficulty=diff, fault_type=DIFF_FAULT_MAP[diff])
                 agent = BaselineAgent(AgentConfig(seed=self.seed))
                 result = run_baseline_episode(env, agent, seed=self.seed, max_steps=20, verbose=False)
                 scores[diff] = result["final_score"]
-            
+
             # Easy should be higher than medium, medium higher than hard
             progression = scores[2] >= scores[3] >= scores[5]
             self._record_result(TestResult(

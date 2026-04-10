@@ -52,4 +52,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 # Switch to non-root user
 USER appuser
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["python", "-m", "uvicorn", "server.app:main", "--host", "0.0.0.0", "--port", "7860"]

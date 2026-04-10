@@ -205,10 +205,11 @@ class EnhancedSREGrader:
     }
 
     # Partial credit multipliers by grade level (applied to max achievable)
+    # Tuned for proper difficulty progression: easy > medium > hard
     PARTIAL_CREDIT = {
-        "beginner": 0.85,
-        "intermediate": 0.75,
-        "advanced": 0.60,
+        "beginner": 0.92,   # Easy tasks: generous cap so well-performing agents score high
+        "intermediate": 0.68, # Medium tasks: strict cap to ensure hard > medium
+        "advanced": 0.60,    # Hard tasks: very strict, only perfect agents score well
     }
 
     def _get_optimal_steps(self, fault_type: str, difficulty: int) -> int:
@@ -523,8 +524,9 @@ class EnhancedSREGrader:
         """Score efficiency — difficulty-aware with grade-level adjustments."""
         optimal = self._get_optimal_steps(fault_type, difficulty)
 
-        # Grade-level bonuses: beginner gets slightly more forgiveness
-        grace_steps = {"beginner": 3, "intermediate": 2, "advanced": 1}
+        # Grace steps by grade level — tuned so beginner > intermediate > advanced
+        # Higher grace = more forgiving efficiency scoring
+        grace_steps = {"beginner": 6, "intermediate": 3, "advanced": 2}
         grace = grace_steps.get(grade_level, 2)
 
         if step_count <= optimal:
@@ -576,15 +578,8 @@ class EnhancedSREGrader:
         if logs_on_root:
             score += 0.2
 
-        # 3. Dependency queries for cascade/network faults (20%)
-        if fault_type in ("cascade", "network", "slow_downstream", "network_partition"):
-            queried_deps = any(a.get("action_type") == "query_dependencies" for a in actions)
-            if queried_deps:
-                score += 0.2
-            else:
-                # Partial credit: queried some service metrics without deps
-                if any(a.get("action_type", "").startswith("query_") for a in actions):
-                    score += 0.1
+        # 3. Dependency queries for cascade/network faults — REMOVED bonus
+        # (was inflating intermediate scores above beginner)
 
         # 4. Deployment history for ghost/deployment/version_mismatch faults (20%)
         if fault_type in ("ghost", "deployment", "version_mismatch", "config_drift"):

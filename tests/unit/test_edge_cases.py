@@ -322,41 +322,34 @@ class TestDeceptiveSignalsEdgeCases:
     def test_deceptive_signal_generator_initialization(self):
         """DeceptiveSignalGenerator initializes without error."""
         from app.deceptive_signals import DeceptiveSignalGenerator
-        from app.determinism import DeterministicRNG
-        rng = DeterministicRNG(42)
-        gen = DeceptiveSignalGenerator(rng)
+        gen = DeceptiveSignalGenerator(seed=42)
         assert gen is not None
 
-    def test_generate_returns_dict(self):
-        """DeceptiveSignalGenerator.generate returns a dict."""
+    def test_generate_full_deception_suite(self):
+        """DeceptiveSignalGenerator.generate_full_deception_suite returns a dict."""
         from app.deceptive_signals import DeceptiveSignalGenerator
-        from app.determinism import DeterministicRNG
-        rng = DeterministicRNG(42)
-        gen = DeceptiveSignalGenerator(rng)
-        signals = gen.generate(fault_type="oom", difficulty=2, services=["api-gateway"])
+        gen = DeceptiveSignalGenerator(seed=42)
+        signals = gen.generate_full_deception_suite(actual_root_cause="payment-service")
         assert isinstance(signals, dict)
 
     def test_deterministic_signal_generation(self):
         """Same seed produces same deceptive signals."""
         from app.deceptive_signals import DeceptiveSignalGenerator
-        from app.determinism import DeterministicRNG
-        rng1 = DeterministicRNG(42)
-        rng2 = DeterministicRNG(42)
-        gen1 = DeceptiveSignalGenerator(rng1)
-        gen2 = DeceptiveSignalGenerator(rng2)
-        signals1 = gen1.generate(fault_type="cascade", difficulty=3, services=["api-gateway", "user-service"])
-        signals2 = gen2.generate(fault_type="cascade", difficulty=3, services=["api-gateway", "user-service"])
+        gen1 = DeceptiveSignalGenerator(seed=42)
+        gen2 = DeceptiveSignalGenerator(seed=42)
+        signals1 = gen1.generate_full_deception_suite(actual_root_cause="payment-service")
+        signals2 = gen2.generate_full_deception_suite(actual_root_cause="payment-service")
         assert signals1 == signals2
 
-    def test_all_deception_types(self):
-        """All deception types work without error."""
-        from app.deceptive_signals import DeceptiveSignalGenerator, DeceptionType
-        from app.determinism import DeterministicRNG
-        rng = DeterministicRNG(42)
-        gen = DeceptiveSignalGenerator(rng)
-        for dtype in DeceptionType:
-            signals = gen.generate(fault_type="oom", difficulty=2, services=["api-gateway"], deception_types=[dtype])
-            assert isinstance(signals, dict)
+    def test_deception_methods_work(self):
+        """Deception pattern generation methods work."""
+        from app.deceptive_signals import DeceptiveSignalGenerator
+        gen = DeceptiveSignalGenerator(seed=42)
+        pattern = gen.generate_false_root_cause_pattern(
+            actual_root_cause="payment-service",
+            false_root_cause="user-service"
+        )
+        assert pattern is not None
 
 
 class TestInformationTrackerEdgeCases:
@@ -381,7 +374,9 @@ class TestInformationTrackerEdgeCases:
         tracker = EnhancedActionTracker()
         tracker.record_action("restart_service", "payment-service", None)
         summary = tracker.get_information_summary()
-        assert "investigation_score" in summary
+        assert "services_queried" in summary
+        # Restart without investigation should show no services queried
+        assert summary.get("services_queried", 0) == 0
 
     def test_thorough_investigation(self):
         """Agent thoroughly investigates before fixing."""
@@ -394,8 +389,9 @@ class TestInformationTrackerEdgeCases:
         tracker.record_action("identify_root_cause", "payment-service", None)
         tracker.record_action("restart_service", "payment-service", None)
         summary = tracker.get_information_summary()
-        assert "investigation_score" in summary
-        assert "reasoning_score" in summary
+        assert "services_queried" in summary
+        # Should have queried some services
+        assert summary.get("services_queried", 0) > 0
 
     def test_reasoning_score(self):
         """EnhancedActionTracker.get_reasoning_score works."""
