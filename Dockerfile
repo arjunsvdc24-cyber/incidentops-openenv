@@ -33,8 +33,10 @@ COPY --chown=appuser:appuser inference.py .
 COPY --chown=appuser:appuser pyproject.toml .
 COPY --chown=appuser:appuser run.sh .
 
-# Create logs directory (writable by appuser)
+# Create logs directory and database directory (writable by appuser)
 RUN mkdir -p /app/logs && chown appuser:appuser /app/logs
+# Ensure app directory is writable for SQLite database creation
+RUN chown -R appuser:appuser /app
 
 # Expose port
 EXPOSE 7860
