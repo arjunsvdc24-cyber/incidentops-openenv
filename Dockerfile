@@ -27,6 +27,7 @@ COPY --chown=appuser:appuser dashboard/dist ./dashboard/dist
 
 # Copy application files (all owned by appuser)
 COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser server/ ./server/
 COPY --chown=appuser:appuser openenv.yaml .
 COPY --chown=appuser:appuser baseline.py .
 COPY --chown=appuser:appuser inference.py .
