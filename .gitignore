@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+.coverage
+cov_report.txt
+htmlcov/
+.pytest_cache/
