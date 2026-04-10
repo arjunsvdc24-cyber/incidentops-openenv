@@ -1,5 +1,5 @@
 # IncidentOps - Pre-built Dashboard, Minimal Image
-# Version: 15.1
+# Version: 15.1 — OpenEnv Hackathon Submission
 #
 # Dashboard is pre-built and committed to the repo.
 # This eliminates the builder stage - builds are fast and reliable.
