@@ -1,3 +1,21 @@
+---
+title: IncidentOps
+emoji: 🚨
+colorFrom: red
+colorTo: orange
+sdk: docker
+app_port: 7860
+pinned: true
+tags:
+  - openenv
+  - sre
+  - incident-response
+  - reinforcement-learning
+  - multi-agent
+  - real-world-simulation
+  - llm-agent
+---
+
 # IncidentOps v15.1
 
 Production SRE Incident Response RL Environment — train and evaluate AI agents on real-world on-call scenarios. Used by ML engineers to benchmark LLM agent capabilities, by SREs to practice incident playbooks, and by researchers studying multi-agent coordination.
