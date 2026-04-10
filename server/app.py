@@ -17,8 +17,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.main import app, main as _uvicorn_main
 
-# HF Spaces expects "server:main" to reference the FastAPI app
-main = app
+
+def main():
+    """Return the FastAPI app for uvicorn / multi-mode deployment."""
+    return app
 
 
 if __name__ == "__main__":
