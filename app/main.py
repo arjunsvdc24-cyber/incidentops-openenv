@@ -68,7 +68,7 @@ request_id_var: ContextVar[str] = ContextVar("request_id", default="no-request-i
 # Clamps any score to strictly (0, 1) — validator rejects exact 0.0 or 1.0
 def _clamp_score(value: float) -> float:
     """Clamp a score to strictly (0, 1) to pass validator checks."""
-    _E = 1e-9
+    _E = 0.001
     return max(_E, min(1.0 - _E, value))
 
 from app.db import get_db, init_db, close_db

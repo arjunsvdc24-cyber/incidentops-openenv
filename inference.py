@@ -309,7 +309,9 @@ async def run_task(client: OpenAI, task_def: dict, seed: int = SEED) -> dict:
             messages.append({"role": "user", "content": build_prompt(obs, step_num)})
 
         # Normalize score to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
-        _EPSILON = 1e-6
+        # Validator uses round(x, 3), so eps must be >= 0.001:
+        #   round(1.0 - 0.001, 3) = 0.999 < 1.0, round(0.001, 3) = 0.001 > 0.0
+        _EPSILON = 0.001
         score = min(max(sum(rewards) / 10.0, _EPSILON), 1.0 - _EPSILON)
 
     finally:

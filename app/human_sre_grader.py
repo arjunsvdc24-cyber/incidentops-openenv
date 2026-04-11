@@ -192,8 +192,8 @@ class HumanSREGrader:
             eval_result.reasoning_weighted
         )
         
-        # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
-        _EPSILON = 1e-4
+        # Clamp to strictly (0, 1) — validator uses round(score, 3), so eps >= 0.001
+        _EPSILON = 0.001
         eval_result.final_score = max(_EPSILON, min(1.0 - _EPSILON,
             eval_result.raw_score - eval_result.total_penalty
         ))

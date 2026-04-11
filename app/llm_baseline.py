@@ -425,7 +425,7 @@ def run_llm_evaluation(
         eval_result = grader.grade(trajectory, scenario)
         
         results[name] = {
-            "score": round(eval_result.breakdown.final_score, 3),
+            "score": round(eval_result.breakdown.final_score, 9),  # 9dp preserves eps=0.001 bounds
             "steps": steps,
             "total_reward": round(total_reward, 3),
             "grade": eval_result.breakdown.grade.value,

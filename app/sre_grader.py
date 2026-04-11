@@ -235,8 +235,8 @@ class SREExpertGrader:
         if evaluation.ignored_key_signals:
             penalty += 0.05
         
-        # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
-        _EPSILON = 1e-4
+        # Clamp to strictly (0, 1) — validator uses round(score, 3), so eps >= 0.001
+        _EPSILON = 0.001
         evaluation.final_score = max(_EPSILON, min(1.0 - _EPSILON, evaluation.raw_score - penalty))
         
         # 8. Assign grade

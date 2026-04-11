@@ -221,7 +221,7 @@ class EnhancedSREGrader:
 
     def _clamp(self, value: float) -> float:
         """Clamp a score to strictly (0, 1) — validator requires no exact 0.0 or 1.0."""
-        _EPSILON = 1e-9
+        _EPSILON = 0.001
         return max(_EPSILON, min(1.0 - _EPSILON, value))
     
     # Key evidence by fault type
@@ -352,8 +352,9 @@ class EnhancedSREGrader:
         penalties = self._calculate_penalties(actions, root_cause, affected, grade_level)
         breakdown.penalties = penalties
         # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
-        # Use 1e-4 epsilon so round(..., 3) still preserves bounds
-        _EPSILON = 1e-4
+        # Validator uses round(score, 3), so eps must be >= 0.001 to survive:
+        #   round(1.0 - 0.001, 3) = 0.999 < 1.0, round(0.001, 3) = 0.001 > 0.0
+        _EPSILON = 0.001
         breakdown.final_score = max(_EPSILON, min(1.0 - _EPSILON, breakdown.raw_total - penalties))
 
         # Assign grade
