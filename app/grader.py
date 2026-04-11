@@ -258,7 +258,7 @@ class DeepTrajectoryGrader:
             score.incorrect_service_penalty
         )
         # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
-        _EPSILON = 1e-9
+        _EPSILON = 1e-4
         score.final_score = max(_EPSILON, min(1.0 - _EPSILON, score.raw_score - total_penalty))
 
         # 9. Assign grade

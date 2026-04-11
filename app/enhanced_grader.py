@@ -347,7 +347,8 @@ class EnhancedSREGrader:
         penalties = self._calculate_penalties(actions, root_cause, affected, grade_level)
         breakdown.penalties = penalties
         # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
-        _EPSILON = 1e-9
+        # Use 1e-4 epsilon so round(..., 3) still preserves bounds
+        _EPSILON = 1e-4
         breakdown.final_score = max(_EPSILON, min(1.0 - _EPSILON, breakdown.raw_total - penalties))
 
         # Assign grade

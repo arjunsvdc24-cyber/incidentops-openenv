@@ -236,7 +236,7 @@ class SREExpertGrader:
             penalty += 0.05
         
         # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
-        _EPSILON = 1e-9
+        _EPSILON = 1e-4
         evaluation.final_score = max(_EPSILON, min(1.0 - _EPSILON, evaluation.raw_score - penalty))
         
         # 8. Assign grade

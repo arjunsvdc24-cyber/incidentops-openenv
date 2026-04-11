@@ -1390,12 +1390,12 @@ async def run_baseline(request: Request, body: BaselineRequest):
                 env, agent, seed=body.seed, max_steps=body.max_steps, verbose=body.verbose
             )
             return {
-                name: round(result["final_score"], 3),
+                name: round(result["final_score"], 6),
                 "agent_type": "rule_based",
                 "success": True,
-                "easy": round(result["final_score"], 3) if difficulty == 2 else None,
-                "medium": round(result["final_score"], 3) if difficulty == 3 else None,
-                "hard": round(result["final_score"], 3) if difficulty == 5 else None,
+                "easy": round(result["final_score"], 6) if difficulty == 2 else None,
+                "medium": round(result["final_score"], 6) if difficulty == 3 else None,
+                "hard": round(result["final_score"], 6) if difficulty == 5 else None,
             }
 
         # No task provided — run all 3 canonical tasks
@@ -1412,8 +1412,8 @@ async def run_baseline(request: Request, body: BaselineRequest):
             result = run_baseline_episode(
                 env, agent, seed=body.seed, max_steps=body.max_steps, verbose=body.verbose
             )
-            results[name] = round(result["final_score"], 3)
-        results["total"] = round(sum(results.values()) / 3, 3)
+            results[name] = round(result["final_score"], 6)
+        results["total"] = round(sum(results.values()) / 3, 6)
         # Map to OpenEnv validation keys
         results["easy"] = results.get("oom_crash")
         results["medium"] = results.get("cascade_failure")
