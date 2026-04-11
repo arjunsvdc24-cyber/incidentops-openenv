@@ -64,22 +64,30 @@ def run_rule_based_baseline(task_id: str = None) -> dict:
 def run_llm_baseline(task_id: str = None) -> dict:
     """
     Run the LLM-powered baseline using OpenAI API.
-    
+
     Args:
         task_id: Optional specific task to run.
-    
+
     Returns:
         Dictionary with baseline scores.
     """
     from openai import OpenAI
-    
-    client = OpenAI()
-    
+
+    # HACKATHON: Use injected API_BASE_URL + API_KEY first
+    api_key = os.environ.get("API_KEY")
+    base_url = os.environ.get("API_BASE_URL")
+    if not api_key or not base_url:
+        # Fall back to standard env var
+        api_key = os.environ.get("OPENAI_API_KEY")
+        base_url = None  # Use default OpenAI endpoint
+
+    client = OpenAI(api_key=api_key, base_url=base_url) if api_key else None
+
     # Import the LLM baseline agent
     from app.llm_baseline import run_llm_evaluation
-    
-    results = run_llm_evaluation(seed=42, verbose=True)
-    
+
+    results = run_llm_evaluation(seed=42, verbose=True, api_key=api_key, base_url=base_url)
+
     if task_id:
         return {task_id: results[task_id]}
     return results
@@ -122,7 +130,8 @@ Examples:
     args = parser.parse_args()
     
     # Check for OpenAI API key if using LLM mode
-    api_key = os.environ.get("OPENAI_API_KEY")
+    # HACKATHON: Check injected vars first
+    api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print("WARNING: OPENAI_API_KEY not set. Running rule-based baseline via /baseline endpoint.")
         import requests

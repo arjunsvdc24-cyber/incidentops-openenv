@@ -1302,6 +1302,20 @@ async def run_baseline(request: Request, body: BaselineRequest):
     try:
         if body.use_llm:
             from app.llm_baseline import run_llm_evaluation, check_openai_available
+            # HACKATHON: Use injected API_BASE_URL + API_KEY first (highest priority)
+            _hackathon_key = os.environ.get("API_KEY")
+            _hackathon_url = os.environ.get("API_BASE_URL")
+            if _hackathon_key and _hackathon_url:
+                results = run_llm_evaluation(
+                    seed=body.seed,
+                    max_steps=body.max_steps,
+                    verbose=body.verbose,
+                    api_key=_hackathon_key,
+                    base_url=_hackathon_url,
+                    model=body.model_name,
+                )
+                return {**results, "agent_type": "llm", "success": True}
+
             # Priority: Groq > Gemini > AskSage > OpenAI > HuggingFace > generic
             # SECURITY: Pass API key directly to client — do NOT write to os.environ
             if body.gemini_api_key:
@@ -1457,6 +1471,23 @@ async def configure(request: EnvConfigRequest):
 async def check_openai_key(request: OpenAICheckRequest):
     try:
         from openai import OpenAI
+
+        # HACKATHON: Check injected env vars first (highest priority)
+        _hackathon_key = os.environ.get("API_KEY")
+        _hackathon_url = os.environ.get("API_BASE_URL")
+        if _hackathon_key and _hackathon_url:
+            try:
+                client = OpenAI(api_key=_hackathon_key, base_url=_hackathon_url)
+                models = client.models.list()
+                return {
+                    "valid": True,
+                    "provider": "hackathon",
+                    "models_available": [m.id for m in models.data[:10]],
+                    "api_base_url": _hackathon_url,
+                    "model_name": body.model_name or "gpt-4o",
+                }
+            except Exception as e:  # pragma: no cover
+                return {"valid": False, "message": str(e)}  # pragma: no cover
 
         # Priority: Groq > Gemini > AskSage > OpenAI > HuggingFace > generic
         if request.gemini_api_key:

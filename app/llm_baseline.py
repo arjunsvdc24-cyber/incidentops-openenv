@@ -117,20 +117,27 @@ class LLMBaselineAgent:
         self.config = config or LLMAgentConfig()
         self.rng = random.Random(self.config.seed)
 
-        # Initialize OpenAI client — prefer explicitly passed values, then fall back to env
-        # SECURITY: API key is passed directly rather than read from environment
-        self.api_key = (
-            api_key
-            or os.environ.get("GROQ_API_KEY")
-            or os.environ.get("HF_TOKEN")
-            or os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("GEMINI_API_KEY")
-            or os.environ.get("ASKME_API_KEY")
-            or ""
-        )
-        self.base_url = base_url or os.environ.get(
-            "API_BASE_URL", "https://api.groq.com/openai/v1"
-        )
+        # Initialize OpenAI client — HACKATHON PRIORITY: use injected API_BASE_URL + API_KEY first
+        # These are set by the hackathon evaluation infrastructure
+        _hackathon_key = os.environ.get("API_KEY")
+        _hackathon_url = os.environ.get("API_BASE_URL")
+        if _hackathon_key and _hackathon_url:
+            self.api_key = _hackathon_key
+            self.base_url = _hackathon_url
+        else:
+            # Fall back to explicitly passed values, then provider-specific env vars
+            self.api_key = (
+                api_key
+                or os.environ.get("GROQ_API_KEY")
+                or os.environ.get("HF_TOKEN")
+                or os.environ.get("OPENAI_API_KEY")
+                or os.environ.get("GEMINI_API_KEY")
+                or os.environ.get("ASKME_API_KEY")
+                or ""
+            )
+            self.base_url = base_url or os.environ.get(
+                "API_BASE_URL", "https://api.groq.com/openai/v1"
+            )
         self.provider = os.environ.get("LLM_PROVIDER", "openai")
         if model:
             self.config.model = model
@@ -448,7 +455,10 @@ def run_llm_evaluation(
 
 
 def check_openai_available(api_key: str | None = None) -> bool:
-    """Check if LLM API is available (Groq default, then Gemini, AskSage, HF_TOKEN, OPENAI_API_KEY)"""
+    """Check if LLM API is available"""
+    # HACKATHON: Check injected env vars first
+    if os.environ.get("API_KEY") and os.environ.get("API_BASE_URL"):
+        return HAS_OPENAI
     if api_key:
         return HAS_OPENAI
     return HAS_OPENAI and (
