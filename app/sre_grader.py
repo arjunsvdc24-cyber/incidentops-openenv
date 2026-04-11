@@ -235,7 +235,9 @@ class SREExpertGrader:
         if evaluation.ignored_key_signals:
             penalty += 0.05
         
-        evaluation.final_score = max(0.0, min(1.0, evaluation.raw_score - penalty))
+        # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
+        _EPSILON = 1e-9
+        evaluation.final_score = max(_EPSILON, min(1.0 - _EPSILON, evaluation.raw_score - penalty))
         
         # 8. Assign grade
         evaluation.grade = self._assign_grade(evaluation.final_score)

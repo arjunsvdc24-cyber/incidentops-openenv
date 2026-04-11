@@ -257,7 +257,9 @@ class DeepTrajectoryGrader:
             score.redundant_query_penalty +
             score.incorrect_service_penalty
         )
-        score.final_score = max(0.0, min(1.0, score.raw_score - total_penalty))
+        # Clamp to strictly (0, 1) — validator requires scores > 0.0 and < 1.0
+        _EPSILON = 1e-9
+        score.final_score = max(_EPSILON, min(1.0 - _EPSILON, score.raw_score - total_penalty))
 
         # 9. Assign grade
         score.grade = self._assign_grade(score.final_score)
