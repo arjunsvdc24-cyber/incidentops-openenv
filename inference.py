@@ -64,14 +64,28 @@ _PROVIDER_KEYS = {
     "huggingface": "HF_TOKEN",
 }
 
-default_base, default_model = _PROVIDER_DEFAULTS.get(PROVIDER, _PROVIDER_DEFAULTS["groq"])
-API_BASE_URL = os.getenv("API_BASE_URL", default_base)
-MODEL_NAME = os.getenv("MODEL_NAME", default_model)
-API_KEY = os.getenv(_PROVIDER_KEYS.get(PROVIDER, "GROQ_API_KEY"), "")
+# HACKATHON: Check injected API_KEY + HF_TOKEN FIRST (before provider-specific keys)
+# This ensures the LiteLLM proxy is used when the hackathon injects credentials.
+# Sample script pattern: API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+_API_KEY_INJECTED = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
 
-# Groq has a built-in key; others require explicit env var
-if not API_KEY and PROVIDER != "groq":
-    sys.stderr.write(f"[ERROR] {_PROVIDER_KEYS.get(PROVIDER)} environment variable not set for provider={PROVIDER}.\n")
+_PROVIDER_KEY = _PROVIDER_KEYS.get(PROVIDER, "GROQ_API_KEY")
+_API_KEY_PROVIDER = os.getenv(_PROVIDER_KEY, "")
+
+# Priority: injected hackathon vars > provider-specific env var > Groq built-in
+_API_KEY = _API_KEY_INJECTED or _API_KEY_PROVIDER
+
+default_base, default_model = _PROVIDER_DEFAULTS.get(PROVIDER, _PROVIDER_DEFAULTS["groq"])
+API_BASE_URL = os.getenv("API_BASE_URL") or default_base
+MODEL_NAME = os.getenv("MODEL_NAME") or default_model
+API_KEY = _API_KEY
+
+# HACKATHON: Require API_KEY/HF_TOKEN (LiteLLM proxy) OR provider-specific key
+if not API_KEY:
+    if PROVIDER == "groq":
+        sys.stderr.write(f"[ERROR] GROQ_API_KEY or HACKATHON_API_KEY not set. Set API_KEY or GROQ_API_KEY.\n")
+    else:
+        sys.stderr.write(f"[ERROR] {_PROVIDER_KEYS.get(PROVIDER)} environment variable not set for provider={PROVIDER}.\n")
     sys.exit(1)
 
 MAX_STEPS = int(os.getenv("MAX_STEPS", "50"))
