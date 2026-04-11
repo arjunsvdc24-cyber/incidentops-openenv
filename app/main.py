@@ -63,6 +63,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # === Request ID correlation ===
 request_id_var: ContextVar[str] = ContextVar("request_id", default="no-request-id")
 
+
+# === Score clamping helper ===
+# Clamps any score to strictly (0, 1) — validator rejects exact 0.0 or 1.0
+def _clamp_score(value: float) -> float:
+    """Clamp a score to strictly (0, 1) to pass validator checks."""
+    _E = 1e-9
+    return max(_E, min(1.0 - _E, value))
+
 from app.db import get_db, init_db, close_db
 from app.db.repositories import UserRepository, EpisodeRepository, LeaderboardRepository
 from app.db.schemas import (
@@ -1284,13 +1292,13 @@ async def grade(request: Request, body: GradeRequest):
             weaknesses=[],
             suggestions=[],
             breakdown=GradeBreakdown(
-                root_cause_accuracy=score.root_cause_score,
-                fix_correctness=score.fix_score,
-                slo_adherence=score.slo_preservation_score,
-                efficiency=score.efficiency_score,
-                minimal_disruption=score.minimal_disruption_score,
-                reasoning_quality=score.reasoning_chain_score,
-                investigation_thoroughness=score.reasoning_chain_score,
+                root_cause_accuracy=_clamp_score(score.root_cause_score),
+                fix_correctness=_clamp_score(score.fix_score),
+                slo_adherence=_clamp_score(score.slo_preservation_score),
+                efficiency=_clamp_score(score.efficiency_score),
+                minimal_disruption=_clamp_score(score.minimal_disruption_score),
+                reasoning_quality=_clamp_score(score.reasoning_chain_score),
+                investigation_thoroughness=_clamp_score(score.reasoning_chain_score),
             ),
             reasoning_pattern="unknown",
         )

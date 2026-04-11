@@ -218,6 +218,11 @@ class EnhancedSREGrader:
         # Scale by difficulty: diff 1→0.7x, diff 3→1.0x, diff 5→1.5x
         multiplier = 0.5 + (difficulty * 0.25)
         return max(2, round(base * multiplier))
+
+    def _clamp(self, value: float) -> float:
+        """Clamp a score to strictly (0, 1) — validator requires no exact 0.0 or 1.0."""
+        _EPSILON = 1e-9
+        return max(_EPSILON, min(1.0 - _EPSILON, value))
     
     # Key evidence by fault type
     KEY_EVIDENCE = {
@@ -293,37 +298,37 @@ class EnhancedSREGrader:
             )
 
         # 1. Root cause score (20%)
-        breakdown.root_cause_score = self._score_root_cause(actions, root_cause, grade_level)
+        breakdown.root_cause_score = self._clamp(self._score_root_cause(actions, root_cause, grade_level))
         breakdown.root_cause_weighted = breakdown.root_cause_score * self.WEIGHTS["root_cause"]
 
         # 2. Fix score (20%)
-        breakdown.fix_score = self._score_fix(actions, final_state, root_cause, fault_type, grade_level)
+        breakdown.fix_score = self._clamp(self._score_fix(actions, final_state, root_cause, fault_type, grade_level))
         breakdown.fix_weighted = breakdown.fix_score * self.WEIGHTS["fix"]
 
         # 3. SLO score (15%) — task-specific time budget
-        breakdown.slo_score = self._score_slo(len(actions), difficulty, grade_level)
+        breakdown.slo_score = self._clamp(self._score_slo(len(actions), difficulty, grade_level))
         breakdown.slo_weighted = breakdown.slo_score * self.WEIGHTS["slo"]
 
         # 4. Efficiency score (15%) — difficulty-aware
-        breakdown.efficiency_score = self._score_efficiency(len(actions), fault_type, difficulty, grade_level)
+        breakdown.efficiency_score = self._clamp(self._score_efficiency(len(actions), fault_type, difficulty, grade_level))
         breakdown.efficiency_weighted = breakdown.efficiency_score * self.WEIGHTS["efficiency"]
 
         # 5. Disruption score (10%)
         disruption_result = self._score_disruption(actions, root_cause, affected)
-        breakdown.disruption_score = disruption_result["score"]
+        breakdown.disruption_score = self._clamp(disruption_result["score"])
         breakdown.disruption_weighted = breakdown.disruption_score * self.WEIGHTS["disruption"]
 
         # 6. Reasoning score (10%)
         reasoning_analysis = self._analyze_reasoning(
             actions, fault_type, root_cause, reasoning_data
         )
-        breakdown.reasoning_score = self._calculate_reasoning_score(reasoning_analysis)
+        breakdown.reasoning_score = self._clamp(self._calculate_reasoning_score(reasoning_analysis))
         breakdown.reasoning_weighted = breakdown.reasoning_score * self.WEIGHTS["reasoning"]
 
         # 7. Investigation thoroughness score (10%)
-        breakdown.investigation_score = self._score_investigation_thoroughness(
+        breakdown.investigation_score = self._clamp(self._score_investigation_thoroughness(
             actions, fault_type, root_cause, grade_level
-        )
+        ))
         breakdown.investigation_weighted = breakdown.investigation_score * self.WEIGHTS["investigation"]
 
         # Calculate totals
