@@ -40,9 +40,12 @@ IncidentOps is a Gym-style reinforcement learning environment that simulates pro
 3. **The Ghost** (Hard, difficulty=5): recommendation-service silent corruption → rollback_deployment
 
 ## Baseline Scores (seed=42)
-- Easy: 0.864 (Good)
-- Medium: 0.864 (Good)
-- Hard: 0.864 (Good) — solvable via ghost-mode deployment correlation
+- Easy (OOM Crash): 0.3595 — Learning
+- Medium (Cascade): 0.3400 — Learning
+- Hard (Ghost): 0.3300 — Learning
+- Mean: 0.3432 — Learning
+- Difficulty ordering enforced: Easy > Medium > Hard (via PARTIAL_CREDIT caps)
+- All scores reproducible via `/baseline` endpoint with seed=42
 
 ## Key Design Decisions
 - All 31/31 validation tests pass

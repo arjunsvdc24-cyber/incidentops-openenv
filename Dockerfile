@@ -42,8 +42,9 @@ RUN chown -R appuser:appuser /app
 # Expose port
 EXPOSE 7860
 
-# Security: validate JWT_SECRET at startup
-ENV JWT_SECRET="incidentops-dev-secret-change-in-production"
+# JWT_SECRET must be set via environment variable or docker -e flag
+# SECURITY: No default secret baked into image
+ENV JWT_SECRET="${JWT_SECRET:-}"
 
 # HEALTHCHECK: validates readiness without exposing internals
 # Uses resource limits: 30s interval, 10s timeout, 3 retries
