@@ -33,7 +33,7 @@ tags:
   - sre-training
   - production-incident
   - agentic-ai
-version: "15.3"
+version: "15.1"
 
 # Observation Schema
 observation:

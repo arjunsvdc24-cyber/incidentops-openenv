@@ -2,7 +2,7 @@ from typing import Any
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-IncidentOps - Comprehensive Validation Script v15.3
+IncidentOps - Comprehensive Validation Script v15.0
 
 Full validation checklist:
 1. Deterministic behavior (same seed → identical results)
@@ -111,7 +111,7 @@ class ComprehensiveValidator:
         """Print validation header"""
         if self.verbose:
             print("=" * 70)
-            print("IncidentOps v15.3 - Comprehensive Validation Suite")
+            print("IncidentOps v12.0 - Comprehensive Validation Suite")
             print("=" * 70)
             print()
     

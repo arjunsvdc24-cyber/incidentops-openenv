@@ -1,7 +1,7 @@
 """
 IncidentOps - Production Incident Response RL Environment
 
-Version: 15.3
+Version: 12.0.0
 
 A Gym-style OpenEnv for training incident response agents.
 
@@ -24,7 +24,7 @@ Quick Start:
     response = env.step(action)
 """
 
-__version__ = "15.3"
+__version__ = "15.0"
 
 # Core models
 from app.models import (

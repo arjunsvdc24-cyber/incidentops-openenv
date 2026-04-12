@@ -4,7 +4,7 @@ IncidentOps - Deep Trajectory Grader v11.0
 
 Evaluates agent trajectories with comprehensive scoring.
 
-Scoring Breakdown (weights sum to 1.00):
+Scoring Breakdown:
 - 0.25 → correct root cause identified
 - 0.25 → correct fix applied
 - 0.15 → efficiency (steps taken)
@@ -242,16 +242,16 @@ class DeepTrajectoryGrader:
         )
 
         # 8. Calculate final score (must total 1.0)
-        # Weights sum to 1.00: root_cause(25%) + fix(25%) + efficiency(14%) +
-        # disruption(14%) + reasoning(6%) + mttr(6%) + ordering(6%) + slo(4%)
+        # Weights sum to 1.00: root_cause(25%) + fix(25%) + efficiency(15%) +
+        # disruption(15%) + reasoning(5%) + mttr(5%) + ordering(5%) + slo(4%)
         score.raw_score = (
             0.25 * score.root_cause_score +
             0.25 * score.fix_score +
-            0.14 * score.efficiency_score +
-            0.14 * score.minimal_disruption_score +
-            0.06 * score.reasoning_chain_score +
-            0.06 * score.mttr_score +
-            0.06 * score.action_ordering_score +
+            0.15 * score.efficiency_score +
+            0.15 * score.minimal_disruption_score +
+            0.05 * score.reasoning_chain_score +
+            0.05 * score.mttr_score +
+            0.05 * score.action_ordering_score +
             0.04 * score.slo_preservation_score
         )
 

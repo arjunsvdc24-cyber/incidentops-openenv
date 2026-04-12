@@ -16,7 +16,7 @@ tags:
   - llm-agent
 ---
 
-# IncidentOps v15.3
+# IncidentOps v15.2
 
 Production SRE Incident Response RL Environment — train and evaluate AI agents on real-world on-call scenarios. Used by ML engineers to benchmark LLM agent capabilities, by SREs to practice incident playbooks, and by researchers studying multi-agent coordination.
 
@@ -33,14 +33,14 @@ docker run -p 7860:7860 ghcr.io/incidentops/incidentops:latest
 
 **Canonical Tasks:**
 
-| Task | Difficulty | Rule-Based | Grade |
-|------|------------|------------|-------|
-| OOM Crash | Easy (2) | 0.3595 | Learning |
-| Cascade | Medium (3) | 0.3400 | Learning |
-| The Ghost | Hard (5) | 0.3300 | Learning |
-| **Mean** | — | 0.3432 | Learning |
+| Task | Difficulty | Rule-Based | LLM Baseline | Grade |
+|------|------------|------------|--------------|-------|
+| OOM Crash | Easy (2) | 0.382 | — | Poor |
+| Cascade | Medium (3) | 0.457 | — | Poor |
+| The Ghost | Hard (5) | 0.436 | — | Poor |
+| **Mean** | — | 0.425 | — | Poor |
 
-> **Ghost task note**: The Ghost task requires temporal reasoning and deployment correlation — significantly harder for rule-based agents. This validates that hard tasks need systematic investigation beyond simple heuristics.
+> **Ghost task note**: The rule-based agent scores significantly lower on Ghost because it cannot perform multi-hop temporal reasoning. This validates the difficulty progression: easy and medium tasks are solvable by rule-based agents, while hard tasks require systematic investigation and reasoning.
 
 All scores are reproducible via `/baseline` endpoint with seed=42.
 
@@ -64,7 +64,7 @@ Most RL environments are games. IncidentOps is **work**:
 | Failure modes | 1 way to fail | Cascading, deceptive, silent |
 | Time pressure | None | SLA deadline countdown |
 | Business stakes | None | Revenue loss + user impact |
-| Baseline Score | N/A | 0.41 (Learning) mean rule-based |
+| Baseline Score | N/A | 0.425 (Poor) mean rule-based |
 
 **15 fault types** from trivial to nightmare — OOM crashes, cascade failures, silent data corruption, DDoS, memory leaks, zombie processes, TLS cert expiry, cache stampedes, and more.
 
@@ -74,7 +74,7 @@ Most RL environments are games. IncidentOps is **work**:
 
 **Real-world utility (30%)** — IncidentOps fills a critical gap in RL/agent research: production SRE debugging. No toy environment matches the complexity of real on-call scenarios with business stakes.
 
-**Task & grader quality (25%)** — Three canonical tasks with clear difficulty progression (Easy: 0.3595 → Medium: 0.3400 → Hard: 0.3300 rule-based). 7-axis enhanced SRE grader with difficulty-aware partial credit caps. Validates root cause, fix, SLO, efficiency, disruption, reasoning, and investigation.
+**Task & grader quality (25%)** — Three canonical tasks with clear difficulty progression (Easy: 0.382 → Medium: 0.457 → Hard: 0.436 rule-based). 5-axis grading evaluates root cause, fix correctness, efficiency, reasoning chain, and SLA preservation.
 
 **Environment design (20%)** — Clean state management via `reset()`/`step()`/`state()`. 11-action SRE tooling space. Dense rewards at every step. Proper episode boundaries with SLA deadlines.
 
@@ -299,11 +299,11 @@ npm run dev
 
 ### Canonical (3 Graded Tasks)
 
-| Task | Difficulty | Score | Description |
-|------|------------|-------|-------------|
-| OOM Crash | Easy (2) | 0.3595 | Payment-service crash requiring restart |
-| Cascade | Medium (3) | 0.40 | Database connection pool exhaustion under load |
-| The Ghost | Hard (5) | 0.45 | Silent deployment corruption requiring investigation |
+| Task | Difficulty | Rule-Based | Description |
+|------|------------|-----------|-------------|
+| OOM Crash | Easy (2) | 0.795 | Payment-service crash requiring restart |
+| Cascade | Medium (3) | 0.811 | Database connection pool exhaustion under load |
+| The Ghost | Hard (5) | 0.468 | Silent deployment corruption requiring investigation |
 
 ### Advanced Faults (via /tasks endpoint — not graded)
 
@@ -429,12 +429,12 @@ Output includes:
 
 ## Benchmark Scores
 
-| Task | Difficulty | Rule-Based | Grade |
-|------|------------|------------|-------|
-| OOM Crash | Easy (2) | 0.3595 | Learning |
-| Cascade | Medium (3) | 0.3400 | Learning |
-| The Ghost | Hard (5) | 0.3300 | Learning |
-| **Mean** | — | 0.3432 | Learning |
+| Task | Difficulty | Rule-Based | LLM Baseline | Grade |
+|------|------------|------------|--------------|-------|
+| OOM Crash | Easy (2) | 0.382 | — | Poor |
+| Cascade | Medium (3) | 0.457 | — | Poor |
+| The Ghost | Hard (5) | 0.436 | — | Poor |
+| **Mean** | — | 0.425 | — | Poor |
 
 All scores reproducible via `/baseline` endpoint with seed=42.
 

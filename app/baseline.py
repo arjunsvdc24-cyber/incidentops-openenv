@@ -765,7 +765,6 @@ def run_baseline_episode(
         "grade": evaluation.breakdown.grade.value,
         "root_cause_identified": agent.identified_root_cause is not None,
         "action_log": agent.get_action_log(),
-        "trajectory": trajectory,
     }
 
 
