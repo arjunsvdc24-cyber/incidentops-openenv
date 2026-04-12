@@ -266,7 +266,7 @@ class TestExtendedScoringDimensions:
             },
         }
         result = grade_trajectory(traj)
-        # Raw score should equal the weighted sum
+        # Raw score should equal the weighted sum (slo_preservation is 0.04, not 0.05)
         expected_raw = (
             0.25 * result.root_cause_score +
             0.25 * result.fix_score +
@@ -275,7 +275,7 @@ class TestExtendedScoringDimensions:
             0.05 * result.reasoning_chain_score +
             0.05 * result.mttr_score +
             0.05 * result.action_ordering_score +
-            0.05 * result.slo_preservation_score
+            0.04 * result.slo_preservation_score
         )
         assert abs(result.raw_score - expected_raw) < 0.001
 
