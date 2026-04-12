@@ -4,15 +4,15 @@ IncidentOps - Deep Trajectory Grader v11.0
 
 Evaluates agent trajectories with comprehensive scoring.
 
-Scoring Breakdown:
+Scoring Breakdown (weights sum to 1.00):
 - 0.25 → correct root cause identified
 - 0.25 → correct fix applied
-- 0.15 → efficiency (steps taken)
-- 0.15 → minimal disruption (services affected by actions)
-- 0.05 → reasoning chain evaluation
-- 0.05 → MTTR (Mean Time To Resolve)
-- 0.05 → action ordering quality
-- 0.05 → SLO preservation
+- 0.14 → efficiency (steps taken)
+- 0.14 → minimal disruption (services affected by actions)
+- 0.06 → reasoning chain evaluation
+- 0.06 → MTTR (Mean Time To Resolve)
+- 0.06 → action ordering quality
+- 0.04 → SLO preservation
 
 Penalties:
 - unnecessary actions
@@ -242,16 +242,16 @@ class DeepTrajectoryGrader:
         )
 
         # 8. Calculate final score (must total 1.0)
-        # Weights sum to 1.00: root_cause(25%) + fix(25%) + efficiency(15%) +
-        # disruption(15%) + reasoning(5%) + mttr(5%) + ordering(5%) + slo(4%)
+        # Weights sum to 1.00: root_cause(25%) + fix(25%) + efficiency(14%) +
+        # disruption(14%) + reasoning(6%) + mttr(6%) + ordering(6%) + slo(4%)
         score.raw_score = (
             0.25 * score.root_cause_score +
             0.25 * score.fix_score +
-            0.15 * score.efficiency_score +
-            0.15 * score.minimal_disruption_score +
-            0.05 * score.reasoning_chain_score +
-            0.05 * score.mttr_score +
-            0.05 * score.action_ordering_score +
+            0.14 * score.efficiency_score +
+            0.14 * score.minimal_disruption_score +
+            0.06 * score.reasoning_chain_score +
+            0.06 * score.mttr_score +
+            0.06 * score.action_ordering_score +
             0.04 * score.slo_preservation_score
         )
 
@@ -936,16 +936,16 @@ class DeepTrajectoryGrader:
             "=" * 60,
             "",
             "CORE SCORES:",
-            f"  Root Cause (25%):    {score.root_cause_score:.3f} × 0.25 = {score.root_cause_score * 0.25:.3f}",
-            f"  Correct Fix (25%):   {score.fix_score:.3f} × 0.25 = {score.fix_score * 0.25:.3f}",
-            f"  Efficiency (15%):    {score.efficiency_score:.3f} × 0.15 = {score.efficiency_score * 0.15:.3f}",
-            f"  Min Disruption (15%): {score.minimal_disruption_score:.3f} × 0.15 = {score.minimal_disruption_score * 0.15:.3f}",
+            f"  Root Cause (25%):    {score.root_cause_score:.3f} x 0.25 = {score.root_cause_score * 0.25:.3f}",
+            f"  Correct Fix (25%):   {score.fix_score:.3f} x 0.25 = {score.fix_score * 0.25:.3f}",
+            f"  Efficiency (15%):    {score.efficiency_score:.3f} x 0.15 = {score.efficiency_score * 0.15:.3f}",
+            f"  Min Disruption (15%): {score.minimal_disruption_score:.3f} x 0.15 = {score.minimal_disruption_score * 0.15:.3f}",
             "",
             "EXTENDED QUALITY SCORES:",
-            f"  Reasoning Chain (5%):  {score.reasoning_chain_score:.3f} × 0.05 = {score.reasoning_chain_score * 0.05:.3f}",
-            f"  MTTR (5%):            {score.mttr_score:.3f} × 0.05 = {score.mttr_score * 0.05:.3f}",
-            f"  Action Ordering (5%):  {score.action_ordering_score:.3f} × 0.05 = {score.action_ordering_score * 0.05:.3f}",
-            f"  SLO Preservation (5%): {score.slo_preservation_score:.3f} × 0.05 = {score.slo_preservation_score * 0.05:.3f}",
+            f"  Reasoning Chain (5%):  {score.reasoning_chain_score:.3f} x 0.05 = {score.reasoning_chain_score * 0.05:.3f}",
+            f"  MTTR (5%):            {score.mttr_score:.3f} x 0.05 = {score.mttr_score * 0.05:.3f}",
+            f"  Action Ordering (5%):  {score.action_ordering_score:.3f} x 0.05 = {score.action_ordering_score * 0.05:.3f}",
+            f"  SLO Preservation (5%): {score.slo_preservation_score:.3f} x 0.05 = {score.slo_preservation_score * 0.05:.3f}",
             "",
             "PENALTIES:",
             f"  Unnecessary Actions:  -{score.unnecessary_action_penalty:.3f}",
