@@ -1,4 +1,5 @@
-# IncidentOps - Complete Hackathon Audit & Judge Score Report
+# 
+ - Complete Hackathon Audit & Judge Score Report
 
 ## Executive Summary
 
@@ -9,6 +10,7 @@
 > **Last updated**: After v15.0 fixes — rate-limit test failures resolved, /baseline endpoint fallback bug fixed, README scores corrected, all 1205+ tests pass (100%), 94% coverage.
 
 ---
+
 
 ## Scoring Breakdown by Rubric
 

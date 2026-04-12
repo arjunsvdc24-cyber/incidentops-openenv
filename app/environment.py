@@ -41,22 +41,24 @@ from app.fault_injector import (
 STEPS_PER_MINUTE = 5
 
 # SLA time limits per fault type (in minutes)
+# Aligned to grader SLO tiers (steps / 5 steps-per-min = minutes):
+# Diff 1-2 (5 steps) = 1 min, Diff 3 (8 steps) = 1.6 min, Diff 4 (12 steps) = 2.4 min, Diff 5 (18 steps) = 3.6 min
 SLA_MINUTES = {
-    "oom": 5,
-    "cascade": 8,
-    "ghost": 15,
-    "deployment": 8,
-    "network": 5,
-    "network_partition": 5,
-    "data_corruption": 5,
-    "config_drift": 10,
-    "ddos": 3,
-    "slow_downstream": 8,
-    "version_mismatch": 10,
-    "cert_expiry": 15,
-    "memory_leak": 10,
-    "zombie_process": 5,
-    "thundering_herd": 5,
+    "oom": 1,
+    "cascade": 2,
+    "ghost": 4,
+    "deployment": 2,
+    "network": 1,
+    "network_partition": 1,
+    "data_corruption": 2,
+    "config_drift": 2,
+    "ddos": 1,
+    "slow_downstream": 2,
+    "version_mismatch": 2,
+    "cert_expiry": 1,
+    "memory_leak": 2,
+    "zombie_process": 1,
+    "thundering_herd": 2,
 }
 
 # Revenue per minute for each service (based on criticality, in USD)

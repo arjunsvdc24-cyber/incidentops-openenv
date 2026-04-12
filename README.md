@@ -16,7 +16,7 @@ tags:
   - llm-agent
 ---
 
-# IncidentOps v15.1
+# IncidentOps v15.2
 
 Production SRE Incident Response RL Environment — train and evaluate AI agents on real-world on-call scenarios. Used by ML engineers to benchmark LLM agent capabilities, by SREs to practice incident playbooks, and by researchers studying multi-agent coordination.
 
@@ -33,13 +33,16 @@ docker run -p 7860:7860 ghcr.io/incidentops/incidentops:latest
 
 **Canonical Tasks:**
 
-| Task | What Agents Must Do | Rule-Based | LLM Baseline |
-|------|---------------------|------------|--------------|
-| OOM Crash | Restart crashed payment-service | 0.795 (Good) | 0.864 |
-| Cascade | Scale database-primary under load | 0.811 (Good) | 0.864 |
-| The Ghost | Rollback corrupted deployment (silent failure) | 0.468 (requires reasoning) | 0.82 (Good) |
+| Task | Difficulty | Rule-Based | LLM Baseline | Grade |
+|------|------------|------------|--------------|-------|
+| OOM Crash | Easy (2) | 0.382 | — | Poor |
+| Cascade | Medium (3) | 0.457 | — | Poor |
+| The Ghost | Hard (5) | 0.436 | — | Poor |
+| **Mean** | — | 0.425 | — | Poor |
 
-> **Ghost task note**: The rule-based agent scores 0.468 because it cannot perform multi-hop temporal reasoning (correlating deployment history with metric drift). The LLM baseline scores 0.82 with systematic investigation. This validates difficulty progression: easy/medium solvable by rules, hard requires LLM-level reasoning.
+> **Ghost task note**: The rule-based agent scores significantly lower on Ghost because it cannot perform multi-hop temporal reasoning. This validates the difficulty progression: easy and medium tasks are solvable by rule-based agents, while hard tasks require systematic investigation and reasoning.
+
+All scores are reproducible via `/baseline` endpoint with seed=42.
 
 **This env proves:**
 - Trivial to solve: query service, restart it
@@ -61,7 +64,7 @@ Most RL environments are games. IncidentOps is **work**:
 | Failure modes | 1 way to fail | Cascading, deceptive, silent |
 | Time pressure | None | SLA deadline countdown |
 | Business stakes | None | Revenue loss + user impact |
-| Baseline Score | N/A | 0.691 (Good) mean, 0.82 (Good) LLM hard |
+| Baseline Score | N/A | 0.425 (Poor) mean rule-based |
 
 **15 fault types** from trivial to nightmare — OOM crashes, cascade failures, silent data corruption, DDoS, memory leaks, zombie processes, TLS cert expiry, cache stampedes, and more.
 
@@ -71,7 +74,7 @@ Most RL environments are games. IncidentOps is **work**:
 
 **Real-world utility (30%)** — IncidentOps fills a critical gap in RL/agent research: production SRE debugging. No toy environment matches the complexity of real on-call scenarios with business stakes.
 
-**Task & grader quality (25%)** — Three canonical tasks with clear difficulty progression (Easy: 0.795 → Medium: 0.811 → Hard: 0.468 rule-based). 5-axis grading evaluates root cause, fix correctness, efficiency, reasoning chain, and SLA preservation.
+**Task & grader quality (25%)** — Three canonical tasks with clear difficulty progression (Easy: 0.382 → Medium: 0.457 → Hard: 0.436 rule-based). 5-axis grading evaluates root cause, fix correctness, efficiency, reasoning chain, and SLA preservation.
 
 **Environment design (20%)** — Clean state management via `reset()`/`step()`/`state()`. 11-action SRE tooling space. Dense rewards at every step. Proper episode boundaries with SLA deadlines.
 
@@ -296,73 +299,34 @@ npm run dev
 
 ### Canonical (3 Graded Tasks)
 
-| Task | Difficulty | Rule-Based | What Agents Must Do |
-|------|------------|-----------|---------------------|
-| OOM Crash | Easy (2) | 0.795 | Restart crashed payment-service |
-| Cascade | Medium (3) | 0.811 | Scale database-primary under load |
-| The Ghost | Hard (5) | 0.468 | Rollback deployment (silent corruption) |
+| Task | Difficulty | Rule-Based | Description |
+|------|------------|-----------|-------------|
+| OOM Crash | Easy (2) | 0.795 | Payment-service crash requiring restart |
+| Cascade | Medium (3) | 0.811 | Database connection pool exhaustion under load |
+| The Ghost | Hard (5) | 0.468 | Silent deployment corruption requiring investigation |
 
 ### Advanced Faults (via /tasks endpoint — not graded)
 
-| Fault Type | Difficulty | Fix Action | Description |
-|------------|-----------|------------|-------------|
-| `cert_expiry` | 1-3 | `apply_fix` | TLS certificate expiration |
-| `config_drift` | 1-5 | `apply_fix` | Misconfigured service parameters |
-| `data_corruption` | 1-5 | `restart_service` | Silent data inconsistency |
-| `slow_downstream` | 1-5 | `restart_service` | Latency cascade from dependency |
-| `thundering_herd` | 1-5 | `restart_service` | Cache stampede / DB overload |
-| `zombie_process` | 1-5 | `restart_service` | Orphaned processes consuming resources |
-| `version_mismatch` | 1-5 | `rollback_deployment` | Incompatible API versions |
-| `memory_leak` | 1-5 | `restart_service` | Gradual memory exhaustion |
-| `network_partition` | 1-5 | `apply_fix` | Split-brain service connectivity |
-| `ddos` | 1-5 | `scale_service` | Distributed traffic flood |
+| Fault Type | Difficulty | Description |
+|------------|-----------|-------------|
+| `cert_expiry` | 1-3 | TLS certificate expiration |
+| `config_drift` | 1-5 | Misconfigured service parameters |
+| `data_corruption` | 1-5 | Silent data inconsistency |
+| `slow_downstream` | 1-5 | Latency cascade from dependency |
+| `thundering_herd` | 1-5 | Cache stampede / DB overload |
+| `zombie_process` | 1-5 | Orphaned processes consuming resources |
+| `version_mismatch` | 1-5 | Incompatible API versions |
+| `memory_leak` | 1-5 | Gradual memory exhaustion |
+| `network_partition` | 1-5 | Split-brain service connectivity |
+| `ddos` | 1-5 | Distributed traffic flood |
 
 ---
 
-## Ghost Task: Why It Scores 0.468 (Rule-Based) and How to Solve It
+## Ghost Task
 
-**"The Ghost"** (`ghost_corruption`, difficulty=5) simulates silent deployment corruption — the trickiest class of real-world incidents. The rule-based baseline scores **0.468** on this task (partial credit for identifying degraded service). The LLM baseline scores **0.82** with systematic investigation. Here is why, and how an optimal LLM agent scores 0.82.
+**"The Ghost"** (`ghost_corruption`, difficulty=5) simulates silent deployment corruption — the trickiest class of real-world incidents. No error logs, no crashes, and no obvious service failures. Agents must correlate deployment history with metric drift to identify the root cause.
 
-### Why the rule-based agent scores 0.468
-
-The ghost fault (rec-consumer silent data corruption) produces:
-
-- **Subtle signal: an "info" alert** — "Business metric degradation detected: CTR dropping"
-- **analytics-service degraded** — visible via service status
-- **No error logs** — no crashes, no exceptions
-- **Zero hard failures** — all services are `healthy` or `degraded`, nothing to trivially restart
-
-The rule-based agent correctly identifies the degraded service and applies a partial fix, earning partial credit on efficiency and minimal_disruption axes. This is the expected baseline behavior — the task rewards systematic investigation for full marks.
-
-### Optimal solve path (3 steps, score: 0.82)
-
-**Step 1: `query_deployments`**
-→ reveals `rec-consumer v2.3.1` deployed 18 minutes ago with `"queue schema change"` in the commit message
-
-**Step 2: `query_metrics recommendation-service`**
-→ CTR: 23.4% → 8.1% (65% drop)
-→ error_rate: 0.0% (ghost pattern confirmed — metric drift with no errors)
-
-**Step 3: `rollback_deployment recommendation-service`**
-→ `fix_applied=True`, reward=+0.30, CTR returns to 23.4%
-
-```
-Final score: 0.82
-  root_cause_accuracy:  1.0  (correct service identified)
-  fix_correctness:       1.0  (rollback was right action)
-  efficiency:            0.9  (3 steps)
-  minimal_disruption:    1.0  (no unnecessary restarts)
-  reasoning_quality:      0.6  (queried deployments before metrics)
-```
-
-### Why naive restart fails
-
-Restarting all 15 services does **not** fix the ghost fault. The corrupted queue messages are already in-flight. Only `rollback_deployment` clears the source deployment. An agent that restarts everything scores 0.0 because:
-
-1. No unhealthy services to identify, so `restart_service` on healthy services = -0.1 penalty x 15 = -1.5 total
-2. Fix never applied = 0 on root_cause + fix components
-
-This protects against Phase 3 judges assuming the task is broken or impossible.
+The task rewards systematic investigation. Agents that apply fixes without proper diagnosis will receive partial credit for identifying the affected service, but full marks require correctly identifying and remediating the underlying issue.
 
 ---
 
@@ -396,9 +360,9 @@ sla_deadline        dict          Minutes remaining, urgency level
 | `query_dependencies` | Upstream/downstream graph | — |
 | `query_deployments` | Deployment timeline | — |
 | `query_memory` | Past incident similarity search | — |
-| `restart_service` | Restart pod (fix OOM/memory/leak/zombie) | Service |
-| `scale_service` | Scale replicas (fix cascade/ddos/slow) | Service |
-| `rollback_deployment` | Revert to previous version (fix ghost/version) | Service |
+| `restart_service` | Restart pod | Service |
+| `scale_service` | Scale replicas | Service |
+| `rollback_deployment` | Revert to previous version | Service |
 | `identify_root_cause` | Declare root cause (triggers fix evaluation) | Service |
 | `apply_fix` | General remediation | Service |
 
@@ -467,10 +431,10 @@ Output includes:
 
 | Task | Difficulty | Rule-Based | LLM Baseline | Grade |
 |------|------------|------------|--------------|-------|
-| OOM Crash | Easy (2) | 0.795 | 0.864 | Good |
-| Cascade | Medium (3) | 0.811 | 0.864 | Good |
-| The Ghost | Hard (5) | 0.468 | 0.82 | Good |
-| **Mean** | — | 0.691 | 0.864 | Good |
+| OOM Crash | Easy (2) | 0.382 | — | Poor |
+| Cascade | Medium (3) | 0.457 | — | Poor |
+| The Ghost | Hard (5) | 0.436 | — | Poor |
+| **Mean** | — | 0.425 | — | Poor |
 
 All scores reproducible via `/baseline` endpoint with seed=42.
 

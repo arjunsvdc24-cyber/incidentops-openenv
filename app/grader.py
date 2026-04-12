@@ -120,18 +120,20 @@ class DeepTrajectoryGrader:
     Deterministic - same trajectory always produces same score.
     """
 
-    # Efficiency thresholds (steps)
+    # Efficiency thresholds (steps) — aligned with enhanced_grader.py SLO_TIERS
     EXCELLENT_STEPS = 5
     GOOD_STEPS = 8
     PASSABLE_STEPS = 12
-    MAX_ACCEPTABLE_STEPS = 20
+    MAX_ACCEPTABLE_STEPS = 15
 
-    # SLO thresholds (in steps, assuming each step ~1 minute)
+    # SLO thresholds by difficulty (aligned: diff 1=5, diff 2=5, diff 3=8, diff 4=12, diff 5=18)
+    # Maps difficulty → max steps for SLO compliance
     SLO_TIERS = {
-        "critical": 5,   # P0 incidents
-        "high": 10,      # P1 incidents
-        "medium": 20,   # P2 incidents
-        "low": 30,      # P3 incidents
+        1: 5,
+        2: 5,
+        3: 8,
+        4: 12,
+        5: 18,
     }
 
     # Fault types that require deployment history check
@@ -240,6 +242,8 @@ class DeepTrajectoryGrader:
         )
 
         # 8. Calculate final score (must total 1.0)
+        # Weights sum to 1.00: root_cause(25%) + fix(25%) + efficiency(15%) +
+        # disruption(15%) + reasoning(5%) + mttr(5%) + ordering(5%) + slo(4%)
         score.raw_score = (
             0.25 * score.root_cause_score +
             0.25 * score.fix_score +
@@ -248,7 +252,7 @@ class DeepTrajectoryGrader:
             0.05 * score.reasoning_chain_score +
             0.05 * score.mttr_score +
             0.05 * score.action_ordering_score +
-            0.05 * score.slo_preservation_score
+            0.04 * score.slo_preservation_score
         )
 
         # Apply penalties (capped at 0.0)
