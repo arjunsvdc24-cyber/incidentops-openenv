@@ -1,0 +1,407 @@
+# IncidentOps OpenEnv Configuration
+# Production incident response RL environment for training and evaluating SRE agents.
+#
+# This environment simulates real-world on-call scenarios across a 15-service
+# microservice architecture. Agents must diagnose faults, identify root causes,
+# and apply remediation actions under SLA time pressure with partial observability.
+#
+# Compatible with OpenEnv specification v1.0
+# Tested: 31/31 validation checks pass
+
+name: IncidentOps
+description: >
+  Production SRE Incident Response RL Environment — train and evaluate AI agents
+  on real-world on-call scenarios. Simulates 15-service e-commerce platform with
+  13 fault types (OOM, cascade, ghost, DDoS, memory leak, zombie processes,
+  cert expiry, etc.). Features dense rewards, deceptive signals, SLA deadlines,
+  and 5-axis SRE grading. Used for LLM agent benchmarking, SRE training, and
+  multi-agent coordination research. Baseline: 0.864 (LLM) / 0.691 (rule-based).
+emoji: "🚨"
+color_from: red
+color_to: orange
+sdk: docker
+app_port: 7860
+pinned: true
+tags:
+  - openenv
+  - sre
+  - incident-response
+  - reinforcement-learning
+  - multi-agent
+  - real-world-simulation
+  - llm-evaluation
+  - sre-training
+  - production-incident
+  - agentic-ai
+version: "15.3"
+
+# Observation Schema
+observation:
+  type: object
+  properties:
+    step:
+      type: integer
+      description: Current step number
+
+    services:
+      type: object
+      description: Service states keyed by service name
+      additionalProperties:
+        type: object
+        properties:
+          status:
+            type: string
+            enum: [healthy, degraded, unhealthy, unknown]
+          latency_ms:
+            type: number
+          error_rate:
+            type: number
+          cpu_percent:
+            type: number
+          memory_percent:
+            type: number
+
+    alerts:
+      type: array
+      description: Active alerts
+      items:
+        type: object
+        properties:
+          service:
+            type: string
+          severity:
+            type: string
+            enum: [info, warning, error, critical]
+          message:
+            type: string
+
+    incident_info:
+      type: object
+      description: Current incident metadata
+      properties:
+        fault_type:
+          type: string
+          enum:
+            - oom
+            - cascade
+            - ghost
+            - deployment
+            - network
+            - cert_expiry
+            - config_drift
+            - data_corruption
+            - network_partition
+            - slow_downstream
+            - thundering_herd
+            - zombie_process
+            - version_mismatch
+            - memory_leak
+            - ddos
+          description: >
+            All 15 fault types (5 canonical graded + 10 advanced via /tasks). Use /tasks endpoint for full scenario metadata.
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 5
+
+    fix_applied:
+      type: boolean
+      description: Whether the correct fix has been applied
+
+    observability:
+      type: object
+      description: Tracking of what has been observed
+      properties:
+        observed_services:
+          type: integer
+        observed_logs:
+          type: integer
+        observed_metrics:
+          type: integer
+
+    # SLO/SLI metrics — real-world SRE metrics
+    slo_metrics:
+      type: object
+      description: Current SLO/SLI metrics and error budget
+      properties:
+        availability_percent:
+          type: number
+        latency_p99_ms:
+          type: number
+        latency_slo_met:
+          type: boolean
+        error_rate_percent:
+          type: number
+        error_slo_met:
+          type: boolean
+        error_budget_remaining_percent:
+          type: number
+        healthy_services:
+          type: integer
+        degraded_services:
+          type: integer
+        unhealthy_services:
+          type: integer
+
+    # Business impact — revenue and user metrics
+    business_impact:
+      type: object
+      description: Real-world business impact of current incident state
+      properties:
+        revenue_loss_per_minute_usd:
+          type: number
+        cumulative_revenue_loss_usd:
+          type: number
+        affected_users_estimate:
+          type: integer
+        impacted_services:
+          type: array
+          items:
+            type: string
+        severity:
+          type: string
+          enum: [normal, warning, critical]
+
+    # SLA deadline countdown
+    sla_deadline:
+      type: object
+      description: SLA breach countdown timer
+      properties:
+        sla_minutes:
+          type: number
+        minutes_remaining:
+          type: number
+        urgency:
+          type: string
+          enum: [normal, elevated, critical]
+        sla_breached:
+          type: boolean
+        sla_target_minutes:
+          type: number
+
+    action_result:
+      type: object
+      description: Result of the last action taken (logs, metrics, dependencies, etc.) — present in step() responses only, not in reset()
+
+# Action Schema
+action:
+  type: object
+  properties:
+    action_type:
+      type: string
+      enum:
+        - query_service
+        - query_metrics
+        - query_logs
+        - query_dependencies
+        - query_deployments
+        - query_memory
+        - restart_service
+        - scale_service
+        - rollback_deployment
+        - identify_root_cause
+        - apply_fix
+      description: Type of action to perform
+    
+    target_service:
+      type: string
+      description: Target service name
+      enum:
+        - api-gateway
+        - user-service
+        - auth-service
+        - payment-service
+        - order-service
+        - inventory-service
+        - recommendation-service
+        - notification-service
+        - cache-service
+        - database-primary
+        - database-replica
+        - search-service
+        - analytics-service
+        - email-service
+        - shipping-service
+    
+    parameters:
+      type: object
+      description: Optional action parameters
+      properties:
+        query:
+          type: string
+        symptoms:
+          type: array
+          items:
+            type: string
+        services:
+          type: array
+          items:
+            type: string
+        explanation:
+          type: string
+  
+  required:
+    - action_type
+
+# Reward Schema
+reward:
+  type: number
+  description: Normalized reward signal for the action (0.0-1.0 final score)
+  minimum: -1.0
+  maximum: 1.0
+
+# Episode Configuration
+episode:
+  max_steps: 50
+  termination_conditions:
+    - fix_applied
+    - max_steps_reached
+    - critical_failure
+
+# Endpoints
+endpoints:
+  reset:
+    method: POST
+    path: /reset
+    description: Reset environment for new episode
+    request:
+      type: object
+      properties:
+        seed:
+          type: integer
+        fault_type:
+          type: string
+        difficulty:
+          type: integer
+    response:
+      type: object
+      properties:
+        observation:
+          $ref: "#/observation"
+        info:
+          type: object
+  
+  step:
+    method: POST
+    path: /step
+    description: Execute action and get next observation
+    request:
+      $ref: "#/action"
+    response:
+      type: object
+      properties:
+        observation:
+          $ref: "#/observation"
+        reward:
+          $ref: "#/reward"
+        terminated:
+          type: boolean
+        truncated:
+          type: boolean
+        info:
+          type: object
+  
+  state:
+    method: GET
+    path: /state
+    description: Get current environment state
+    response:
+      type: object
+      properties:
+        initialized:
+          type: boolean
+        step:
+          type: integer
+        total_reward:
+          type: number
+  
+  tasks:
+    method: GET
+    path: /tasks
+    description: List available tasks/scenarios
+    response:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              fault_type:
+                type: string
+              difficulty:
+                type: integer
+        action_schema:
+          type: object
+  
+  grader:
+    method: POST
+    path: /grader
+    description: Grade trajectory with SRE evaluation
+    request:
+      type: object
+      properties:
+        trajectory_id:
+          type: string
+        actions:
+          type: array
+        final_state:
+          type: object
+        scenario:
+          type: object
+    response:
+      type: object
+      properties:
+        final_score:
+          type: number
+        grade:
+          type: string
+        explanation:
+          type: string
+        breakdown:
+          type: object
+  
+  baseline:
+    method: POST
+    path: /baseline
+    description: Run baseline agent evaluation
+    request:
+      type: object
+      properties:
+        seed:
+          type: integer
+        max_steps:
+          type: integer
+    response:
+      type: object
+      properties:
+        easy:
+          type: number
+        medium:
+          type: number
+        hard:
+          type: number
+        total:
+          type: number
+
+# Metadata
+metadata:
+  author: IncidentOps Team
+  license: MIT
+  repository: https://github.com/incidentops/environment
+  tags:
+    - sre
+    - incident-response
+    - rl-training
+    - openenv
+    - reinforcement-learning
+    - gym-environment
+    - multi-agent
+    - llm-baselines
+    - sre-evaluation
+    - production-debugging
+    - incident-management
+    - observability
+    - fault-injection

@@ -1,0 +1,26 @@
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'list',
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:7860',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
+  webServer: process.env.CI ? undefined : {
+    command: 'python -m uvicorn app.main:app --port 7860',
+    url: 'http://localhost:7860/health',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+  },
+});

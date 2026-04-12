@@ -1,0 +1,15 @@
+# Claude Code settings (may contain tokens)
+.claude/
+
+# Dependencies
+node_modules/
+dashboard/node_modules/
+
+__pycache__/
+*.pyc
+*.pyo
+.coverage
+cov_report.txt
+htmlcov/
+.pytest_cache/
+incidentops.db

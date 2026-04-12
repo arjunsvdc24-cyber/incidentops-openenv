@@ -1,0 +1,46 @@
+Here's my deep-dive winning idea for this hackathon. Let me lay it out fully.
+
+---
+
+## 🏆 The Idea: **IncidentOps** — Production Incident Response Environment
+
+An AI agent acts as an on-call Site Reliability Engineer (SRE). It receives live-ish telemetry (logs, metrics, alerts, service graphs) and must diagnose the root cause, take remediation actions, and minimize blast radius — exactly what a human SRE does at 3am.---
+
+### Why this wins on every scoring axis
+
+**Real-world utility (30%) — score target: 28–30**
+Every tech company runs SRE operations. There is no existing OpenEnv environment for this domain. The Meta/HF judges will immediately recognize the gap this fills — RL for on-call AI agents is one of the hottest open problems in reliability engineering right now.
+
+**Task & grader quality (25%) — score target: 23–25**
+Three tasks with a dramatic difficulty ramp:
+
+- **Easy — "The OOM Crash"**: A single payment-service pod crashes with an `OutOfMemoryError`. Logs say exactly what happened. Agent must call `query_logs("payment-service")`, see the error, call `restart_service("payment-service")`, and optionally `write_postmortem`. Grader: did it restart the right service and not touch unaffected ones? Clean 0–1 score.
+
+- **Medium — "The Cascade"**: The user-db connection pool exhausts silently. Three upstream services (auth, order, cart) start returning 503s with misleading "timeout" errors. Agent must correlate metrics across services, trace the cascade back to db, and execute `scale_connection_pool("user-db")` + `restart_service("auth")`. Grader: partial credit for finding the root cause service, full credit for correct fix with minimal extra restarts.
+
+- **Hard — "The Ghost"**: A queue consumer has a logic bug introduced via a recent deploy. It silently corrupts recommendation scores — no error logs, no crashes, only subtle metric drift in click-through rates downstream. Agent must cross-correlate the deploy timeline, diff queue message schemas, and trigger `rollback_deploy("rec-consumer")`. Frontier models genuinely struggle with this because it requires multi-hop reasoning across heterogeneous signals with no obvious alert.
+
+**Environment design (20%) — score target: 18–20**
+The reward function is the real differentiator here. It signals partial progress richly:
+- `+0.2` for correctly identifying the affected service layer
+- `+0.3` for identifying the root cause service specifically
+- `+0.3` for executing the correct remediation action
+- `+0.1` for minimal blast radius (no unnecessary restarts)
+- `+0.1` for writing a valid postmortem with correct RCA
+- `-0.1` per unnecessary service restart (penalizes brute-force "restart everything")
+- `-0.05` per redundant log query (penalizes infinite loops)
+- Episode ends at correct fix OR after 20 steps
+
+**Code quality & spec compliance (15%)** — full OpenEnv spec, Pydantic typed models for `Observation` (list of alerts, metrics dict, log buffer, dependency graph), `Action` (union type of all possible commands), and `Reward`. `openenv.yaml`, Docker, HF Space, `/tasks` + `/grader` + `/baseline` endpoints all in scope.
+
+**Creativity & novelty (10%)** — SRE incident response has *never* appeared as an OpenEnv environment. The fault injector as a first-class component is a novel mechanic. The "silent corruption" hard task requires multi-hop reasoning that genuinely benchmarks frontier capability in a way no existing RL env does.
+
+---
+
+### The technical build plan
+
+The simulated infra doesn't need to be a real K8s cluster. It's a **pure Python state machine** where each service has configurable health parameters. The fault injector mutates state deterministically from a seed, giving reproducible baseline scores. The log stream and metrics are generated procedurally from the fault type — no external dependencies.
+
+Stack: FastAPI + Pydantic + `openenv-core` + Docker + HF Spaces. The baseline script uses the OpenAI client (as required) to run GPT-4o against all three tasks and reports scores.
+
+This is a focused, buildable, genuinely novel environment that fills a real gap, challenges frontier models in a meaningful way, and has an obvious story to tell Meta/HF judges about why it matters. That combination is what wins.

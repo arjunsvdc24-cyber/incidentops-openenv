@@ -1,0 +1,19 @@
+{
+  "title": "IncidentOps",
+  "emoji": "🚨",
+  "colorFrom": "red",
+  "colorTo": "orange",
+  "sdk": "docker",
+  "app_port": 7860,
+  "tags": [
+    "openenv",
+    "sre",
+    "incident-response",
+    "reinforcement-learning",
+    "multi-agent",
+    "real-world-simulation",
+    "llm-agent",
+    "swe-bench"
+  ],
+  "pinned": true
+}
